@@ -1,0 +1,305 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TipoContatos {
+  whatsapp
+  telefone
+  celular
+}
+
+enum Status {
+  ativo
+  inativo
+}
+
+model Empresa {
+  id                      String   @id @default(cuid())
+  nome                    String
+  razao                   String
+  cnpj                    String
+  registro_estadual       String?
+  registro_municipal      String?
+  filiais                 Filial[]
+  email                   String  @unique
+  website                 String?
+  status                  Status   @default(ativo)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  enderecos               Endereco_empresa[]
+  contatos                Contato_empresa[]
+
+}
+
+model Endereco_empresa {
+  id               String          @id @default(cuid())
+  empresaId        String          
+  empresa          Empresa          @relation(fields: [empresaId], references: [id], onDelete:Cascade)
+  cep              String
+  numero           String?
+  logradouro       String
+  bairro           String
+  cidade           String
+  uf               String
+  pais             String
+  principal        Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([empresaId, principal])
+}
+
+model Contato_empresa {
+  id               String          @id @default(cuid())
+  empresaId        String          
+  empresa          Empresa         @relation(fields: [empresaId], references: [id], onDelete:Cascade)
+  tipo             TipoContatos    @default(whatsapp) 
+  Contato          String
+  principal        Boolean?        @default(true)   
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt             
+
+  @@index([empresaId, tipo])
+}
+
+model Filial {
+  id         String   @id @default(cuid())
+  nome       String
+  cnpj       String?
+  empresaId  String
+  empresa    Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  pessoas    Pessoa[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  enderecos  Endereco_filial[]
+  contatos   Contato_filial[]
+  config     Config_filial[]
+
+  @@index([empresaId])
+}
+
+model Endereco_filial {
+  id               String          @id @default(cuid())
+  filialId         String          
+  filial           Filial          @relation(fields: [filialId], references: [id], onDelete:Cascade)
+  cep              String
+  numero           String?
+  logradouro       String
+  bairro           String
+  cidade           String
+  uf               String
+  pais             String
+  principal        Boolean?         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([filialId, principal])
+}
+
+model Contato_filial {
+  id               String          @id @default(cuid())
+  filialId         String          
+  filial           Filial          @relation(fields: [filialId], references: [id], onDelete:Cascade)
+  tipo             TipoContatos    @default(whatsapp) 
+  Contato          String
+  principal        Boolean         @default(true)   
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt             
+
+  @@index([filialId, tipo])
+}
+
+model Config_filial {
+  id               String          @id @default(cuid())
+  filialId         String          
+  filial           Filial          @relation(fields: [filialId], references: [id], onDelete:Cascade)
+  timezone         String?         
+  moeda            String?            
+}
+
+model Pessoa {
+  id               String           @id @default(cuid())
+  nome             String
+  cpf              String?          @unique
+  email            String?
+  generator        String?
+  filialId         String
+  filial           Filial           @relation(fields: [filialId], references: [id], onDelete: Cascade)
+  cliente          Cliente?
+  funcionario      Funcionario?
+  optometrista     Optometrista?
+  oftalmologista   Oftalmologista?
+  fornecedor       Fornecedor?
+  responsavel      Responsavel?
+  usuario          Usuario?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  enderecos        Endereco[]
+  contatos         Contato[]
+  documentos       Documento[]
+
+  @@index([filialId])
+}
+
+model Endereco {
+  id               String          @id @default(cuid())
+  pessoaId         String          
+  pessoa           Pessoa          @relation(fields: [pessoaId], references: [id], onDelete:Cascade)
+  cep              String
+  numero           String
+  logradouro       String
+  bairro           String
+  cidade           String
+  uf               String
+  pais             String
+  principal        Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([pessoaId, principal])
+}
+
+model Contato {
+  id               String          @id @default(cuid())
+  pessoaId         String          
+  pessoa           Pessoa          @relation(fields: [pessoaId], references: [id], onDelete:Cascade)
+  tipo             TipoContatos    @default(whatsapp) 
+  Contato          String
+  principal        Boolean         @default(true)   
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt             
+
+  @@index([pessoaId, tipo])
+}
+
+model Documento {
+  id               String          @id @default(cuid())
+  pessoaId         String          
+  pessoa           Pessoa          @relation(fields: [pessoaId], references: [id], onDelete:Cascade)
+  tipo             String
+  path             String  
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt             
+
+  @@index([pessoaId, tipo])
+}
+
+model Cliente {
+  id        String   @id @default(cuid())
+  pessoaId  String   @unique
+  pessoa    Pessoa   @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+  status    Status   @default(ativo)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Funcionario {
+  id        String   @id @default(cuid())
+  pessoaId  String   @unique
+  pessoa    Pessoa   @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Optometrista {
+  id        String   @id @default(cuid())
+  pessoaId  String   @unique
+  pessoa    Pessoa   @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Oftalmologista {
+  id        String   @id @default(cuid())
+  pessoaId  String   @unique
+  pessoa    Pessoa   @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Fornecedor {
+  id        String   @id @default(cuid())
+  pessoaId  String   @unique
+  pessoa    Pessoa   @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Responsavel {
+  id        String   @id @default(cuid())
+  pessoaId  String   @unique
+  pessoa    Pessoa   @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Usuario {
+  id                        String    @id @default(cuid())
+  email                     String    @unique
+  senha                     String 
+  username                  String?   @unique
+  status                    Status    @default(ativo)
+  ultimo_login              DateTime?
+
+  pessoaId                  String   @unique
+  pessoa                    Pessoa   @relation(fields: [pessoaId], references: [id])
+
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  atribuicao                Atribuicao[]
+
+}
+
+model Acesso {
+  id          String   @id @default(cuid())
+  nome        String   @unique
+  descricao   String?
+
+  atribuicao  Atribuicao[]
+  permissao   AcessoPermissao[]
+}
+
+model Permissao {
+  id          String @id @default(cuid())
+
+  modulo      String
+  acao        String
+  descricao   String?
+
+  acesso      AcessoPermissao[]
+}
+
+model Atribuicao {
+  id          String @id @default(cuid())
+
+  usuarioId   String
+  acessoId    String
+
+  usuario     Usuario @relation(fields: [usuarioId], references: [id])
+  acesso      Acesso @relation(fields: [acessoId], references: [id])
+
+  @@unique([usuarioId, acessoId])
+}
+
+model AcessoPermissao {
+  id                  String       @id @default(cuid())
+  acessoId            String
+  permissaoId         String
+  acesso              Acesso       @relation(fields: [acessoId], references: [id])
+  permissao           Permissao    @relation(fields: [permissaoId], references: [id])
+
+  @@unique([acessoId, permissaoId])
+}
