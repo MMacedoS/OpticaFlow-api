@@ -1,0 +1,79 @@
+### Configurações Iniciais (Variáveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login de um usuário já existente (para obter token e testar rotas protegidas)
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "joao@gmail.com",
+  "senha": "@Senha_123"
+}
+
+###
+
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImpvYW9AZ21haWwuY29tIiwic3ViIjoiY21xdm9qbGJjMDAwMG44b3l5c3dhOTJldyIsInVzZXJuYW1lIjoiSm_Do28gU2lsdmEiLCJwZXNzb2FJZCI6bnVsbCwiaWF0IjoxNzgyNTc0Mjg4LCJleHAiOjE3ODI1Nzc4ODh9.uAdwW_UVjaZ6pNzbOYnr1V6HOKant2Els-rBX4ILbDA
+
+### 1. Criar nova Empresa (cria também um usuário automaticamente)
+# Senha do usuário criado será o CNPJ sem máscara: 11222333000181
+POST {{baseUrl}}/empresa
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "nome": "Optica Flow Matriz",
+  "razao": "Optica Flow Comercio de Produtos Opticos LTDA",
+  "cnpj": "11.222.333/0001-81",
+  "registro_estadual": "123456789",
+  "registro_municipal": "987654321",
+  "email": "contato@opticaflow.com.br",
+  "website": "https://opticaflow.com.br",
+  "status": "ativo",
+  "enderecos": [
+    {
+      "cep": "01001-000",
+      "numero": "100",
+      "logradouro": "Praca da Se",
+      "bairro": "Se",
+      "cidade": "Sao Paulo",
+      "uf": "SP",
+      "pais": "Brasil",
+      "principal": true
+    }
+  ],
+  "contatos": [
+    {
+      "tipo": "whatsapp",
+      "Contato": "11988887777",
+      "principal": true
+    },
+    {
+      "tipo": "telefone",
+      "Contato": "1133334444",
+      "principal": false
+    }
+  ]
+}
+
+### 2. Listar Empresas (paginação e busca)
+GET {{baseUrl}}/empresa?page=1&limit=10&search=Optica
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Login com o usuário criado pela Empresa
+# email: contato@opticaflow.com.br
+# senha: CNPJ sem máscara -> 11222333000181
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+### 4. Deletar Empresa por ID
+# Trocar pelo id retornado no POST /empresa
+DELETE {{baseUrl}}/empresa/COLE_O_ID_DA_EMPRESA
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

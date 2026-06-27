@@ -22,6 +22,60 @@ enum Status {
   inativo
 }
 
+enum StatusAgenda {
+  agendado
+  confirmado
+  cancelado
+  concluido
+  falta
+}
+
+enum StatusAtendimento {
+  em_espera
+  em_andamento
+  concluido
+  cancelado
+}
+
+enum TipoReceita {
+  oculos
+  lente_contato
+  medicamento
+}
+
+enum TipoProduto {
+  armacao
+  lente
+  acessorio
+  servico
+}
+
+enum TipoMovimentoEstoque {
+  entrada
+  saida
+  ajuste
+}
+
+enum StatusOrdemServico {
+  aberta
+  em_producao
+  pronta
+  entregue
+  cancelada
+}
+
+enum TipoFinanceiro {
+  receita
+  despesa
+}
+
+enum CanalNotificacao {
+  sistema
+  email
+  whatsapp
+  sms
+}
+
 model Empresa {
   id                      String   @id @default(cuid())
   nome                    String
@@ -38,6 +92,25 @@ model Empresa {
 
   enderecos               Endereco_empresa[]
   contatos                Contato_empresa[]
+  usuarios                Usuario[]
+  acessos                 Acesso[]
+  permissoes              Permissao[]
+  agendas                 Agenda[]
+  atendimentos            Atendimento[]
+  prontuarios             Prontuario[]
+  receitas                Receita[]
+  produtos                Produto[]
+  estoques                Estoque[]
+  movimentos_estoque      MovimentoEstoque[]
+  compras                 Compra[]
+  vendas                  Venda[]
+  ordens_servico          OrdemServico[]
+  laboratorios            Laboratorio[]
+  convenios               Convenio[]
+  financeiro_lancamentos  FinanceiroLancamento[]
+  arquivos                Arquivo[]
+  notificacoes            Notificacao[]
+  auditorias              Auditoria[]
 
 }
 
@@ -85,6 +158,18 @@ model Filial {
   enderecos  Endereco_filial[]
   contatos   Contato_filial[]
   config     Config_filial[]
+  agendas    Agenda[]
+  atendimentos Atendimento[]
+  prontuarios Prontuario[]
+  receitas   Receita[]
+  estoques   Estoque[]
+  compras    Compra[]
+  vendas     Venda[]
+  ordens_servico OrdemServico[]
+  financeiro_lancamentos FinanceiroLancamento[]
+  arquivos   Arquivo[]
+  notificacoes Notificacao[]
+  auditorias Auditoria[]
 
   @@index([empresaId])
 }
@@ -149,6 +234,12 @@ model Pessoa {
   enderecos        Endereco[]
   contatos         Contato[]
   documentos       Documento[]
+  agendas          Agenda[]
+  atendimentos     Atendimento[] @relation("AtendimentoPaciente")
+  prontuarios      Prontuario[]
+  receitas         Receita[] @relation("ReceitaPaciente")
+  arquivos         Arquivo[]
+  notificacoes     Notificacao[]
 
   @@index([filialId])
 }
@@ -201,8 +292,17 @@ model Cliente {
   pessoaId  String   @unique
   pessoa    Pessoa   @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
   status    Status   @default(ativo)
+  convenioId String?
+  convenio   Convenio? @relation(fields: [convenioId], references: [id], onDelete: SetNull)
+  numero_convenio String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  atendimentos Atendimento[]
+  vendas Venda[]
+  ordens_servico OrdemServico[]
+
+  @@index([convenioId])
 }
 
 model Funcionario {
@@ -235,6 +335,8 @@ model Fornecedor {
   pessoa    Pessoa   @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  compras   Compra[]
 }
 
 model Responsavel {
@@ -247,6 +349,8 @@ model Responsavel {
 
 model Usuario {
   id                        String    @id @default(cuid())
+  empresaId                 String?
+  empresa                   Empresa?   @relation(fields: [empresaId], references: [id], onDelete: SetNull)
   email                     String    @unique
   senha                     String 
   username                  String?   @unique
@@ -260,26 +364,46 @@ model Usuario {
   updatedAt                 DateTime @updatedAt
 
   atribuicao                Atribuicao[]
+  agendas_profissional      Agenda[] @relation("AgendaProfissional")
+  atendimentos_profissional Atendimento[] @relation("AtendimentoProfissional")
+  prontuarios_profissional  Prontuario[] @relation("ProntuarioProfissional")
+  receitas_profissional     Receita[] @relation("ReceitaProfissional")
+  financeiro_lancamentos    FinanceiroLancamento[] @relation("FinanceiroCriadoPor")
+  arquivos_enviados         Arquivo[] @relation("ArquivoEnviadoPor")
+  notificacoes_destino      Notificacao[] @relation("NotificacaoDestino")
+  notificacoes_remetente    Notificacao[] @relation("NotificacaoRemetente")
+  auditorias                Auditoria[]
+
+  @@index([empresaId])
 
 }
 
 model Acesso {
   id          String   @id @default(cuid())
+  empresaId   String?
+  empresa     Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
   nome        String   @unique
   descricao   String?
 
   atribuicao  Atribuicao[]
   permissao   AcessoPermissao[]
+
+  @@index([empresaId])
 }
 
 model Permissao {
   id          String @id @default(cuid())
+  empresaId   String?
+  empresa     Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
 
   modulo      String
   acao        String
   descricao   String?
 
   acesso      AcessoPermissao[]
+
+  @@index([empresaId])
+  @@unique([empresaId, modulo, acao])
 }
 
 model Atribuicao {
@@ -302,4 +426,664 @@ model AcessoPermissao {
   permissao           Permissao    @relation(fields: [permissaoId], references: [id])
 
   @@unique([acessoId, permissaoId])
+}
+
+model Agenda {
+  id             String       @id @default(cuid())
+  empresaId      String
+  filialId       String
+  pessoaId       String?
+  profissionalId String?
+  dataHora       DateTime
+  duracaoMin     Int?
+  status         StatusAgenda @default(agendado)
+  observacao     String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  empresa        Empresa      @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  filial         Filial       @relation(fields: [filialId], references: [id], onDelete: Cascade)
+  pessoa         Pessoa?      @relation(fields: [pessoaId], references: [id], onDelete: SetNull)
+  profissional   Usuario?     @relation("AgendaProfissional", fields: [profissionalId], references: [id], onDelete: SetNull)
+  atendimento    Atendimento?
+
+  @@index([empresaId, dataHora])
+  @@index([filialId, dataHora])
+  @@index([pessoaId])
+  @@index([profissionalId])
+}
+
+model Atendimento {
+  id               String            @id @default(cuid())
+  empresaId        String
+  filialId         String
+  agendaId         String?           @unique
+  pacienteId       String
+  profissionalId   String?
+  clienteId        String?
+  convenioId       String?
+  dataAtendimento  DateTime          @default(now())
+  status           StatusAtendimento @default(em_espera)
+  queixa_principal String?
+  observacoes      String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  empresa          Empresa           @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  filial           Filial            @relation(fields: [filialId], references: [id], onDelete: Cascade)
+  agenda           Agenda?           @relation(fields: [agendaId], references: [id], onDelete: SetNull)
+  paciente         Pessoa            @relation("AtendimentoPaciente", fields: [pacienteId], references: [id], onDelete: Cascade)
+  profissional     Usuario?          @relation("AtendimentoProfissional", fields: [profissionalId], references: [id], onDelete: SetNull)
+  cliente          Cliente?          @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  convenio         Convenio?         @relation(fields: [convenioId], references: [id], onDelete: SetNull)
+  prontuario       Prontuario?
+  receitas         Receita[]
+  ordens_servico   OrdemServico[]
+  vendas           Venda[]
+  financeiro       FinanceiroLancamento[]
+  arquivos         Arquivo[]
+  auditorias       Auditoria[]
+
+  @@index([empresaId, dataAtendimento])
+  @@index([filialId, dataAtendimento])
+  @@index([pacienteId])
+  @@index([profissionalId])
+  @@index([clienteId])
+  @@index([convenioId])
+}
+
+model Prontuario {
+  id                    String                          @id @default(cuid())
+  empresaId             String
+  filialId              String
+  atendimentoId         String                          @unique
+  pacienteId            String
+  profissionalId        String?
+  resumo_clinico        String?
+  createdAt             DateTime                        @default(now())
+  updatedAt             DateTime                        @updatedAt
+
+  empresa               Empresa                         @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  filial                Filial                          @relation(fields: [filialId], references: [id], onDelete: Cascade)
+  atendimento           Atendimento                     @relation(fields: [atendimentoId], references: [id], onDelete: Cascade)
+  paciente              Pessoa                          @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  profissional          Usuario?                        @relation("ProntuarioProfissional", fields: [profissionalId], references: [id], onDelete: SetNull)
+  anamnese              ProntuarioAnamnese?
+  acuidade_visual       ProntuarioAcuidadeVisual?
+  refracao              ProntuarioRefracao?
+  ceratometria          ProntuarioCeratometria?
+  biomicroscopia        ProntuarioBiomicroscopia?
+  fundoscopia           ProntuarioFundoscopia?
+  pressao_intraocular   ProntuarioPressaoIntraocular?
+  diagnosticos          ProntuarioDiagnostico[]
+  exames_complementares ProntuarioExameComplementar[]
+  evolucoes_clinicas    ProntuarioEvolucaoClinica[]
+  receitas              Receita[]
+  arquivos              Arquivo[]
+
+  @@index([empresaId])
+  @@index([filialId])
+  @@index([pacienteId])
+  @@index([profissionalId])
+}
+
+model ProntuarioAnamnese {
+  id                  String     @id @default(cuid())
+  prontuarioId        String     @unique
+  historico_pessoal   String?
+  historico_familiar  String?
+  alergias            String?
+  medicamentos_uso    String?
+  observacoes         String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  prontuario          Prontuario @relation(fields: [prontuarioId], references: [id], onDelete: Cascade)
+}
+
+model ProntuarioAcuidadeVisual {
+  id                  String     @id @default(cuid())
+  prontuarioId        String     @unique
+  od_sem_correcao     String?
+  oe_sem_correcao     String?
+  od_com_correcao     String?
+  oe_com_correcao     String?
+  observacoes         String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  prontuario          Prontuario @relation(fields: [prontuarioId], references: [id], onDelete: Cascade)
+}
+
+model ProntuarioRefracao {
+  id                  String     @id @default(cuid())
+  prontuarioId        String     @unique
+  od_esferico         String?
+  od_cilindrico       String?
+  od_eixo             String?
+  oe_esferico         String?
+  oe_cilindrico       String?
+  oe_eixo             String?
+  dp                  String?
+  adicao              String?
+  observacoes         String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  prontuario          Prontuario @relation(fields: [prontuarioId], references: [id], onDelete: Cascade)
+}
+
+model ProntuarioCeratometria {
+  id                  String     @id @default(cuid())
+  prontuarioId        String     @unique
+  od_k1               String?
+  od_k2               String?
+  oe_k1               String?
+  oe_k2               String?
+  observacoes         String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  prontuario          Prontuario @relation(fields: [prontuarioId], references: [id], onDelete: Cascade)
+}
+
+model ProntuarioBiomicroscopia {
+  id                  String     @id @default(cuid())
+  prontuarioId        String     @unique
+  descricao           String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  prontuario          Prontuario @relation(fields: [prontuarioId], references: [id], onDelete: Cascade)
+}
+
+model ProntuarioFundoscopia {
+  id                  String     @id @default(cuid())
+  prontuarioId        String     @unique
+  descricao           String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  prontuario          Prontuario @relation(fields: [prontuarioId], references: [id], onDelete: Cascade)
+}
+
+model ProntuarioPressaoIntraocular {
+  id                  String     @id @default(cuid())
+  prontuarioId        String     @unique
+  od_mmhg             Float?
+  oe_mmhg             Float?
+  horario             DateTime?
+  observacoes         String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  prontuario          Prontuario @relation(fields: [prontuarioId], references: [id], onDelete: Cascade)
+}
+
+model ProntuarioDiagnostico {
+  id                  String     @id @default(cuid())
+  prontuarioId        String
+  codigo              String
+  versao              String
+  descricao           String?
+  createdAt           DateTime   @default(now())
+
+  prontuario          Prontuario @relation(fields: [prontuarioId], references: [id], onDelete: Cascade)
+
+  @@index([prontuarioId])
+  @@index([codigo, versao])
+}
+
+model ProntuarioExameComplementar {
+  id                  String     @id @default(cuid())
+  prontuarioId        String
+  exame               String
+  resultado           String?
+  dataExame           DateTime?
+  createdAt           DateTime   @default(now())
+
+  prontuario          Prontuario @relation(fields: [prontuarioId], references: [id], onDelete: Cascade)
+
+  @@index([prontuarioId])
+}
+
+model ProntuarioEvolucaoClinica {
+  id                  String     @id @default(cuid())
+  prontuarioId        String
+  descricao           String
+  dataEvolucao        DateTime   @default(now())
+  createdAt           DateTime   @default(now())
+
+  prontuario          Prontuario @relation(fields: [prontuarioId], references: [id], onDelete: Cascade)
+
+  @@index([prontuarioId, dataEvolucao])
+}
+
+model Receita {
+  id                  String      @id @default(cuid())
+  empresaId           String
+  filialId            String
+  atendimentoId       String?
+  prontuarioId        String?
+  pacienteId          String
+  profissionalId      String?
+  tipo                TipoReceita
+  observacoes         String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  empresa             Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  filial              Filial      @relation(fields: [filialId], references: [id], onDelete: Cascade)
+  atendimento         Atendimento? @relation(fields: [atendimentoId], references: [id], onDelete: SetNull)
+  prontuario          Prontuario? @relation(fields: [prontuarioId], references: [id], onDelete: SetNull)
+  paciente            Pessoa      @relation("ReceitaPaciente", fields: [pacienteId], references: [id], onDelete: Cascade)
+  profissional        Usuario?    @relation("ReceitaProfissional", fields: [profissionalId], references: [id], onDelete: SetNull)
+  oculos              ReceitaOculos?
+  lente_contato       ReceitaLenteContato?
+  medicamento         ReceitaMedicamento?
+
+  @@index([empresaId, tipo])
+  @@index([filialId])
+  @@index([atendimentoId])
+  @@index([prontuarioId])
+  @@index([pacienteId])
+  @@index([profissionalId])
+}
+
+model ReceitaOculos {
+  id                  String    @id @default(cuid())
+  receitaId           String    @unique
+  od_esferico         String?
+  od_cilindrico       String?
+  od_eixo             String?
+  oe_esferico         String?
+  oe_cilindrico       String?
+  oe_eixo             String?
+  dp                  String?
+  adicao              String?
+  observacoes         String?
+
+  receita             Receita   @relation(fields: [receitaId], references: [id], onDelete: Cascade)
+}
+
+model ReceitaLenteContato {
+  id                  String    @id @default(cuid())
+  receitaId           String    @unique
+  od_curva_base       String?
+  od_diametro         String?
+  od_grau             String?
+  oe_curva_base       String?
+  oe_diametro         String?
+  oe_grau             String?
+  material            String?
+  marca               String?
+  observacoes         String?
+
+  receita             Receita   @relation(fields: [receitaId], references: [id], onDelete: Cascade)
+}
+
+model ReceitaMedicamento {
+  id                  String    @id @default(cuid())
+  receitaId           String    @unique
+  medicamento         String
+  dosagem             String?
+  posologia           String?
+  duracao             String?
+  observacoes         String?
+
+  receita             Receita   @relation(fields: [receitaId], references: [id], onDelete: Cascade)
+}
+
+model Produto {
+  id                  String      @id @default(cuid())
+  empresaId           String
+  nome                String
+  sku                 String
+  tipo                TipoProduto
+  categoria           String?
+  descricao           String?
+  preco_custo         Float?
+  preco_venda         Float
+  ativo               Boolean     @default(true)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  empresa             Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  estoque_itens       EstoqueItem[]
+  compra_itens        CompraItem[]
+  venda_itens         VendaItem[]
+  ordem_servico_itens OrdemServicoItem[]
+  movimentos          MovimentoEstoque[]
+
+  @@unique([empresaId, sku])
+  @@index([empresaId, tipo])
+}
+
+model Estoque {
+  id                  String      @id @default(cuid())
+  empresaId           String
+  filialId            String
+  nome                String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  empresa             Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  filial              Filial      @relation(fields: [filialId], references: [id], onDelete: Cascade)
+  itens               EstoqueItem[]
+  movimentos          MovimentoEstoque[]
+
+  @@unique([empresaId, filialId])
+}
+
+model EstoqueItem {
+  id                  String      @id @default(cuid())
+  estoqueId           String
+  produtoId           String
+  quantidade          Float       @default(0)
+  minimo              Float?
+  maximo              Float?
+  updatedAt           DateTime    @updatedAt
+
+  estoque             Estoque     @relation(fields: [estoqueId], references: [id], onDelete: Cascade)
+  produto             Produto     @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@unique([estoqueId, produtoId])
+  @@index([produtoId])
+}
+
+model MovimentoEstoque {
+  id                  String               @id @default(cuid())
+  empresaId           String
+  estoqueId           String
+  produtoId           String
+  tipo                TipoMovimentoEstoque
+  quantidade          Float
+  motivo              String?
+  referencia          String?
+  createdAt           DateTime             @default(now())
+
+  empresa             Empresa              @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  estoque             Estoque              @relation(fields: [estoqueId], references: [id], onDelete: Cascade)
+  produto             Produto              @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, createdAt])
+  @@index([estoqueId, createdAt])
+  @@index([produtoId, createdAt])
+}
+
+model Compra {
+  id                  String      @id @default(cuid())
+  empresaId           String
+  filialId            String
+  fornecedorId        String?
+  dataCompra          DateTime    @default(now())
+  status              String?
+  valor_total         Float       @default(0)
+  observacoes         String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  empresa             Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  filial              Filial      @relation(fields: [filialId], references: [id], onDelete: Cascade)
+  fornecedor          Fornecedor? @relation(fields: [fornecedorId], references: [id], onDelete: SetNull)
+  itens               CompraItem[]
+  financeiro          FinanceiroLancamento[]
+
+  @@index([empresaId, dataCompra])
+  @@index([filialId, dataCompra])
+  @@index([fornecedorId])
+}
+
+model CompraItem {
+  id                  String      @id @default(cuid())
+  compraId            String
+  produtoId           String
+  quantidade          Float
+  valor_unitario      Float
+  desconto            Float?
+
+  compra              Compra      @relation(fields: [compraId], references: [id], onDelete: Cascade)
+  produto             Produto     @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@index([compraId])
+  @@index([produtoId])
+}
+
+model Venda {
+  id                  String      @id @default(cuid())
+  empresaId           String
+  filialId            String
+  clienteId           String?
+  atendimentoId       String?
+  dataVenda           DateTime    @default(now())
+  status              String?
+  valor_total         Float       @default(0)
+  observacoes         String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  empresa             Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  filial              Filial      @relation(fields: [filialId], references: [id], onDelete: Cascade)
+  cliente             Cliente?    @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  atendimento         Atendimento? @relation(fields: [atendimentoId], references: [id], onDelete: SetNull)
+  itens               VendaItem[]
+  financeiro          FinanceiroLancamento[]
+
+  @@index([empresaId, dataVenda])
+  @@index([filialId, dataVenda])
+  @@index([clienteId])
+  @@index([atendimentoId])
+}
+
+model VendaItem {
+  id                  String      @id @default(cuid())
+  vendaId             String
+  produtoId           String
+  quantidade          Float
+  valor_unitario      Float
+  desconto            Float?
+
+  venda               Venda       @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  produto             Produto     @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@index([vendaId])
+  @@index([produtoId])
+}
+
+model Laboratorio {
+  id                  String      @id @default(cuid())
+  empresaId           String
+  nome                String
+  cnpj                String?
+  email               String?
+  telefone            String?
+  ativo               Boolean     @default(true)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  empresa             Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  ordens_servico      OrdemServico[]
+
+  @@index([empresaId])
+}
+
+model OrdemServico {
+  id                  String            @id @default(cuid())
+  empresaId           String
+  filialId            String
+  atendimentoId       String?
+  clienteId           String?
+  laboratorioId       String?
+  numero              String?
+  status              StatusOrdemServico @default(aberta)
+  descricao           String?
+  previsao_entrega    DateTime?
+  data_entrega        DateTime?
+  valor_total         Float             @default(0)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  empresa             Empresa           @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  filial              Filial            @relation(fields: [filialId], references: [id], onDelete: Cascade)
+  atendimento         Atendimento?      @relation(fields: [atendimentoId], references: [id], onDelete: SetNull)
+  cliente             Cliente?          @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  laboratorio         Laboratorio?      @relation(fields: [laboratorioId], references: [id], onDelete: SetNull)
+  itens               OrdemServicoItem[]
+  financeiro          FinanceiroLancamento[]
+
+  @@index([empresaId, status])
+  @@index([filialId])
+  @@index([clienteId])
+  @@index([atendimentoId])
+  @@index([laboratorioId])
+}
+
+model OrdemServicoItem {
+  id                  String      @id @default(cuid())
+  ordemServicoId      String
+  produtoId           String?
+  descricao_servico   String?
+  quantidade          Float
+  valor_unitario      Float
+  desconto            Float?
+
+  ordem_servico       OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  produto             Produto?     @relation(fields: [produtoId], references: [id], onDelete: SetNull)
+
+  @@index([ordemServicoId])
+  @@index([produtoId])
+}
+
+model Convenio {
+  id                  String      @id @default(cuid())
+  empresaId           String
+  nome                String
+  registro            String?
+  ativo               Boolean     @default(true)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  empresa             Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  clientes            Cliente[]
+  atendimentos        Atendimento[]
+
+  @@index([empresaId])
+}
+
+model FinanceiroLancamento {
+  id                  String        @id @default(cuid())
+  empresaId           String
+  filialId            String?
+  atendimentoId       String?
+  vendaId             String?
+  compraId            String?
+  ordemServicoId      String?
+  criadoPorId         String?
+  tipo                TipoFinanceiro
+  categoria           String?
+  descricao           String?
+  valor               Float
+  vencimento          DateTime?
+  pagoEm              DateTime?
+  status              String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  empresa             Empresa       @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  filial              Filial?       @relation(fields: [filialId], references: [id], onDelete: SetNull)
+  atendimento         Atendimento?  @relation(fields: [atendimentoId], references: [id], onDelete: SetNull)
+  venda               Venda?        @relation(fields: [vendaId], references: [id], onDelete: SetNull)
+  compra              Compra?       @relation(fields: [compraId], references: [id], onDelete: SetNull)
+  ordem_servico       OrdemServico? @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
+  criado_por          Usuario?      @relation("FinanceiroCriadoPor", fields: [criadoPorId], references: [id], onDelete: SetNull)
+
+  @@index([empresaId, tipo, createdAt])
+  @@index([filialId])
+  @@index([atendimentoId])
+  @@index([vendaId])
+  @@index([compraId])
+  @@index([ordemServicoId])
+  @@index([criadoPorId])
+}
+
+model Arquivo {
+  id                  String      @id @default(cuid())
+  empresaId           String
+  filialId            String?
+  pessoaId            String?
+  atendimentoId       String?
+  prontuarioId        String?
+  enviadoPorId        String?
+  nome                String
+  path                String
+  mime_type           String?
+  tamanho             Int?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  empresa             Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  filial              Filial?     @relation(fields: [filialId], references: [id], onDelete: SetNull)
+  pessoa              Pessoa?     @relation(fields: [pessoaId], references: [id], onDelete: SetNull)
+  atendimento         Atendimento? @relation(fields: [atendimentoId], references: [id], onDelete: SetNull)
+  prontuario          Prontuario? @relation(fields: [prontuarioId], references: [id], onDelete: SetNull)
+  enviado_por         Usuario?    @relation("ArquivoEnviadoPor", fields: [enviadoPorId], references: [id], onDelete: SetNull)
+
+  @@index([empresaId, createdAt])
+  @@index([filialId])
+  @@index([pessoaId])
+  @@index([atendimentoId])
+  @@index([prontuarioId])
+  @@index([enviadoPorId])
+}
+
+model Notificacao {
+  id                  String            @id @default(cuid())
+  empresaId           String
+  filialId            String?
+  pessoaId            String?
+  usuarioDestinoId    String?
+  usuarioRemetenteId  String?
+  canal               CanalNotificacao  @default(sistema)
+  titulo              String
+  mensagem            String
+  lidaEm              DateTime?
+  createdAt           DateTime          @default(now())
+
+  empresa             Empresa           @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  filial              Filial?           @relation(fields: [filialId], references: [id], onDelete: SetNull)
+  pessoa              Pessoa?           @relation(fields: [pessoaId], references: [id], onDelete: SetNull)
+  usuario_destino     Usuario?          @relation("NotificacaoDestino", fields: [usuarioDestinoId], references: [id], onDelete: SetNull)
+  usuario_remetente   Usuario?          @relation("NotificacaoRemetente", fields: [usuarioRemetenteId], references: [id], onDelete: SetNull)
+
+  @@index([empresaId, createdAt])
+  @@index([usuarioDestinoId, lidaEm])
+  @@index([filialId])
+  @@index([pessoaId])
+}
+
+model Auditoria {
+  id                  String      @id @default(cuid())
+  empresaId           String
+  filialId            String?
+  usuarioId           String?
+  atendimentoId       String?
+  entidade            String
+  entidadeId          String?
+  acao                String
+  dados_antes         Json?
+  dados_depois        Json?
+  ip                  String?
+  user_agent          String?
+  createdAt           DateTime    @default(now())
+
+  empresa             Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  filial              Filial?     @relation(fields: [filialId], references: [id], onDelete: SetNull)
+  usuario             Usuario?    @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  atendimento         Atendimento? @relation(fields: [atendimentoId], references: [id], onDelete: SetNull)
+
+  @@index([empresaId, createdAt])
+  @@index([filialId])
+  @@index([usuarioId])
+  @@index([atendimentoId])
+  @@index([entidade, entidadeId])
 }

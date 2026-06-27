@@ -5,6 +5,13 @@ import { UsuarioService } from 'src/usuario/usuario.service';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 
+interface JwtPayload {
+  sub: string;
+  email: string;
+  username?: string;
+  pessoaId?: string | null;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -48,18 +55,28 @@ export class AuthService {
   }
 
   async validateToken(token: string): Promise<boolean> {
+    const payload = await this.validateTokenAndGetPayload(token);
+
+    if (!payload) {
+      return false;
+    }
+
+    return true;
+  }
+
+  async validateTokenAndGetPayload(token: string): Promise<JwtPayload | null> {
     try {
-      const decoded = this.jwtService.verify(token);
+      const decoded = this.jwtService.verify(token) as JwtPayload;
       const usuario = await this.usuarioService.findById(decoded.sub);
 
       if (!usuario) {
-        return false;
+        return null;
       }
 
-      return true;
+      return decoded;
     } catch (error) {
       console.error('Erro ao validar token JWT:', error);
-      return false;
+      return null;
     }
   }
 }

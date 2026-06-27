@@ -13,8 +13,7 @@ Content-Type: {{contentType}}
 
 ###
 
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImpvYW9AZ21haWwuY29tIiwic3ViIjoiY21xdmo1MGprMDAwMDcwbWtlbjJpbGUyYyIsInVzZXJuYW1lIjoiSm_Do28gU2lsdmEiLCJwZXNzb2FJZCI6bnVsbCwiaWF0IjoxNzgyNTIxODE0LCJleHAiOjE3ODI1MjU0MTR9.IVToP7rUBG1VTJbxbbQzRRpUn0YHJbKWjEsMFRiEZIM
-
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImpvYW9AZ21haWwuY29tIiwic3ViIjoiY21xdm9qbGJjMDAwMG44b3l5c3dhOTJldyIsInVzZXJuYW1lIjoiSm_Do28gU2lsdmEiLCJwZXNzb2FJZCI6bnVsbCwiaWF0IjoxNzgyNTc0Mjg4LCJleHAiOjE3ODI1Nzc4ODh9.uAdwW_UVjaZ6pNzbOYnr1V6HOKant2Els-rBX4ILbDA
 
 ### 1. Criar um novo Usuário (Testa as validações do DTO)
 POST {{baseUrl}}/usuario

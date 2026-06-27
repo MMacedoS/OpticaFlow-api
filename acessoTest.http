@@ -1,0 +1,135 @@
+### Configurações Iniciais (Variáveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token JWT
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "joao@gmail.com",
+  "senha": "@Senha_123"
+}
+
+###
+
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImpvYW9AZ21haWwuY29tIiwic3ViIjoiY21xdm9qbGJjMDAwMG44b3l5c3dhOTJldyIsInVzZXJuYW1lIjoiSm_Do28gU2lsdmEiLCJwZXNzb2FJZCI6bnVsbCwiaWF0IjoxNzgyNTc1NDgzLCJleHAiOjE3ODI1NzkwODN9.W4jng-v46-79_xVQFEjwm-EYlJ2oKwNHQ2zGwupx2X0
+@empresaId = cmqwixe1o000013o3o3widcsa
+@usuarioId = cmqvojlbc0000n8oyyswa92ew
+@permissaoId = cmqwjhwe300012uo35cqjrf5e
+@acessoId = cmqwjj7gq00022uo38itq6zp0
+@permissaoEmpresaListarId = cmqwk5bm1000047o3e0dv68jv
+@acessoEmpresaId = cmqwk8lin000147o3shmasm23
+
+### 1. Criar permissão
+POST {{baseUrl}}/acesso/permissao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "modulo": "usuario",
+  "acao": "listar",
+  "descricao": "Permite listar usuários"
+}
+
+### 2. Listar permissões
+GET {{baseUrl}}/acesso/permissao?page=1&limit=10&search=usuario&empresaId={{empresaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Criar acesso com permissões
+POST {{baseUrl}}/acesso
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "nome": "gestor_usuario",
+  "descricao": "Acesso para gestão de usuários",
+  "permissaoIds": [
+    "{{permissaoId}}"
+  ]
+}
+
+### 4. Vincular permissões em um acesso existente
+POST {{baseUrl}}/acesso/{{acessoId}}/permissao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "permissaoIds": [
+    "{{permissaoId}}"
+  ]
+}
+
+### 5. Listar acessos
+GET {{baseUrl}}/acesso?page=1&limit=10&search=gestor&empresaId={{empresaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 6. Atribuir acesso ao usuário
+POST {{baseUrl}}/acesso/atribuicao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "usuarioId": "{{usuarioId}}",
+  "acessoId": "{{acessoId}}"
+}
+
+### 7. Listar atribuições de acesso do usuário
+GET {{baseUrl}}/acesso/usuario/{{usuarioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 7.1 Listar meus acessos usando usuário do token
+GET {{baseUrl}}/acesso/meus
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 8. Criar permissão dinâmica para módulo empresa (ação listar)
+POST {{baseUrl}}/acesso/permissao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "modulo": "empresa",
+  "acao": "listar",
+  "descricao": "Permite listar empresas"
+}
+
+### 9. Criar acesso para empresa/listar
+POST {{baseUrl}}/acesso
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "nome": "gestor_empresa_listar",
+  "descricao": "Acesso para leitura de empresas",
+  "permissaoIds": [
+    "{{permissaoEmpresaListarId}}"
+  ]
+}
+
+### 10. Atribuir acesso de empresa/listar ao usuário
+POST {{baseUrl}}/acesso/atribuicao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "usuarioId": "{{usuarioId}}",
+  "acessoId": "{{acessoEmpresaId}}"
+}
+
+### 11. Testar acesso ao controller empresa (deve permitir quando a permissão existir e estiver atribuída)
+GET {{baseUrl}}/empresa?page=1&limit=10&search=
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 12. Testar ação sem permissão no módulo empresa (esperado: 403)
+DELETE {{baseUrl}}/empresa/COLE_ID_EMPRESA_ALVO
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
