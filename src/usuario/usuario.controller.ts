@@ -6,11 +6,14 @@ import {
   Param,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { UsuarioService } from './usuario.service';
 import { UsuarioDto } from './dto/usuario.dto';
+import { AuthGuard } from 'src/guards/auth/auth.guard';
 
 @Controller('usuario')
+@UseGuards(AuthGuard)
 export class UsuarioController {
   constructor(private readonly usuarioService: UsuarioService) {}
 

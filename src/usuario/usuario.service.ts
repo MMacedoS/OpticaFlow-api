@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UsuarioDto } from './dto/usuario.dto';
 import { Usuario } from './usuario.interface';
-import { Response as ResponseJson } from 'src/interface/response/response.interface';
+import { ResponseJson } from 'src/interface/response/response.interface';
 
 @Injectable()
 export class UsuarioService {
@@ -70,7 +70,7 @@ export class UsuarioService {
     };
   }
 
-  async findByEmail(email: string): Promise<Usuario | null> {
+  async findByEmail(email: string): Promise<any> {
     return this.prisma.usuario.findUnique({
       where: { email },
     });

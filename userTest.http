@@ -2,9 +2,24 @@
 @baseUrl = http://localhost:3000
 @contentType = application/json
 
+#### 0. login de um Usuário (Testa autenticação e geração de token JWT)
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "joao@gmail.com",
+  "senha": "@Senha_123"
+}
+
+###
+
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImpvYW9AZ21haWwuY29tIiwic3ViIjoiY21xdmo1MGprMDAwMDcwbWtlbjJpbGUyYyIsInVzZXJuYW1lIjoiSm_Do28gU2lsdmEiLCJwZXNzb2FJZCI6bnVsbCwiaWF0IjoxNzgyNTIxODE0LCJleHAiOjE3ODI1MjU0MTR9.IVToP7rUBG1VTJbxbbQzRRpUn0YHJbKWjEsMFRiEZIM
+
+
 ### 1. Criar um novo Usuário (Testa as validações do DTO)
 POST {{baseUrl}}/usuario
 Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
 
 {
   "username": "João Silva",
@@ -15,7 +30,10 @@ Content-Type: {{contentType}}
 ###  2. Listar todos os Usuários (Testa paginação e busca)
 GET {{baseUrl}}/usuario?page=1&limit=10&search=João
 Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
 
 #### 3. Deletar um Usuário pelo ID
 DELETE {{baseUrl}}/usuario/cmqvj2fvi000065mk2y89xv0h
 Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
