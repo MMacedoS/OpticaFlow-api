@@ -1,0 +1,171 @@
+### Configurações Iniciais (Variáveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImNvbnRhdG9Ab3B0aWNhZmxvdy5jb20uYnIiLCJzdWIiOiJjbXF3aXhlMjYwMDA0MTNvM3l3NmFyNnZ4IiwidXNlcm5hbWUiOiJPcHRpY2EgRmxvdyBNYXRyaXoiLCJwZXNzb2FJZCI6bnVsbCwiaWF0IjoxNzgyODQzMTUxLCJleHAiOjE3ODI4NDY3NTF9.9e5sYZUyWLWVsZnNYqHiGilI8HP9LgcCaK7YBeB2WFI
+@empresaId = cmqwixe1o000013o3o3widcsa
+@filialId = cmqxxjnrj0000h6o3j2zwymnd
+@enderecoId = cmqxxjnrn0001h6o3r4l5yxmw
+@contatoId = cmqxxjnrp0002h6o30okthm2d
+
+### ─────────────────────────────────────────────────────────────────────────
+### FILIAL
+### ─────────────────────────────────────────────────────────────────────────
+
+### 1. Criar Filial (com endereço, contato e config)
+POST {{baseUrl}}/filial
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "nome": "Filial Centro",
+  "cnpj": "11.222.333/0002-62",
+  "empresaId": "{{empresaId}}",
+  "enderecos": [
+    {
+      "cep": "01310-100",
+      "numero": "200",
+      "logradouro": "Avenida Paulista",
+      "bairro": "Bela Vista",
+      "cidade": "São Paulo",
+      "uf": "SP",
+      "pais": "Brasil",
+      "principal": true
+    }
+  ],
+  "contatos": [
+    {
+      "tipo": "whatsapp",
+      "Contato": "11977776666",
+      "principal": true
+    },
+    {
+      "tipo": "telefone",
+      "Contato": "1132221111",
+      "principal": false
+    }
+  ],
+  "config": {
+    "timezone": "America/Sao_Paulo",
+    "moeda": "BRL"
+  }
+}
+
+### 2. Listar Filiais por Empresa (paginação e busca)
+GET {{baseUrl}}/filial/empresa/{{empresaId}}?page=1&limit=10&search=Centro
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Buscar Filial por ID
+GET {{baseUrl}}/filial/{{filialId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Atualizar Filial (nome / cnpj)
+PUT {{baseUrl}}/filial/{{filialId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "nome": "Filial Centro Atualizada",
+  "cnpj": "11.222.333/0002-62"
+}
+
+### ─────────────────────────────────────────────────────────────────────────
+### ENDEREÇO DA FILIAL
+### ─────────────────────────────────────────────────────────────────────────
+
+### 5. Adicionar Endereço à Filial
+POST {{baseUrl}}/filial/{{filialId}}/endereco
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "cep": "04040-020",
+  "numero": "50",
+  "logradouro": "Rua Augusta",
+  "bairro": "Consolação",
+  "cidade": "São Paulo",
+  "uf": "SP",
+  "pais": "Brasil",
+  "principal": false
+}
+
+### 6. Atualizar Endereço da Filial
+PUT {{baseUrl}}/filial/{{filialId}}/endereco/{{enderecoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "numero": "55",
+  "bairro": "Consolação Atualizado"
+}
+
+### 7. Remover Endereço da Filial
+DELETE {{baseUrl}}/filial/{{filialId}}/endereco/{{enderecoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─────────────────────────────────────────────────────────────────────────
+### CONTATO DA FILIAL
+### ─────────────────────────────────────────────────────────────────────────
+
+### 8. Adicionar Contato à Filial
+POST {{baseUrl}}/filial/{{filialId}}/contato
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "tipo": "celular",
+  "Contato": "11999998888",
+  "principal": false
+}
+
+### 9. Atualizar Contato da Filial
+PUT {{baseUrl}}/filial/{{filialId}}/contato/{{contatoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "Contato": "11911112222",
+  "principal": true
+}
+
+### 10. Remover Contato da Filial
+DELETE {{baseUrl}}/filial/{{filialId}}/contato/{{contatoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─────────────────────────────────────────────────────────────────────────
+### CONFIG DA FILIAL (upsert — cria ou atualiza)
+### ─────────────────────────────────────────────────────────────────────────
+
+### 11. Salvar / Atualizar Config da Filial
+PUT {{baseUrl}}/filial/{{filialId}}/config
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "timezone": "America/Manaus",
+  "moeda": "BRL"
+}
+
+### ─────────────────────────────────────────────────────────────────────────
+### REMOÇÃO
+### ─────────────────────────────────────────────────────────────────────────
+
+### 12. Deletar Filial por ID
+DELETE {{baseUrl}}/filial/{{filialId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

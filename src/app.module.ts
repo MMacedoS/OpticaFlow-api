@@ -8,6 +8,8 @@ import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import { EmpresaModule } from './empresa/empresa.module';
 import { AcessoModule } from './acesso/acesso.module';
+import { FilialModule } from './filial/filial.module';
+import { FuncionarioModule } from './funcionario/funcionario.module';
 
 @Module({
   imports: [
@@ -20,6 +22,8 @@ import { AcessoModule } from './acesso/acesso.module';
     AuthModule,
     EmpresaModule,
     AcessoModule,
+    FilialModule,
+    FuncionarioModule,
   ],
   controllers: [AppController],
   providers: [AppService],

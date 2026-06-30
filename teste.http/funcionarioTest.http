@@ -1,0 +1,62 @@
+### Configurações Iniciais (Variáveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImNvbnRhdG9Ab3B0aWNhZmxvdy5jb20uYnIiLCJzdWIiOiJjbXF3aXhlMjYwMDA0MTNvM3l3NmFyNnZ4IiwidXNlcm5hbWUiOiJPcHRpY2EgRmxvdyBNYXRyaXoiLCJwZXNzb2FJZCI6bnVsbCwiaWF0IjoxNzgyODQzMTUxLCJleHAiOjE3ODI4NDY3NTF9.9e5sYZUyWLWVsZnNYqHiGilI8HP9LgcCaK7YBeB2WFI
+@filialId = cmqxxjnrj0000h6o3j2zwymnd
+@funcionarioId = cmr0ytulz00020usbvbcwf315
+
+### ─────────────────────────────────────────────────────────────────────────
+### FUNCIONARIO
+### ─────────────────────────────────────────────────────────────────────────
+
+### 1. Criar Funcionário (Pessoa + Funcionario + Usuario)
+POST {{baseUrl}}/funcionario
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "nome": "Carlos Andrade",
+  "cpf": "12345678909",
+  "filialId": "{{filialId}}",
+  "email": "carlos.andrade@opticaflow.com.br",
+  "senha": "@Senha_123",
+  "username": "Carlos Andrade"
+}
+
+### 2. Listar Funcionários por Filial (paginação e busca)
+GET {{baseUrl}}/funcionario/filial/{{filialId}}?page=1&limit=10&search=Carlos
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Buscar Funcionário por ID
+GET {{baseUrl}}/funcionario/{{funcionarioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Atualizar Funcionário (Pessoa + Usuario)
+PUT {{baseUrl}}/funcionario/{{funcionarioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "nome": "Carlos Andrade Junior",
+  "email": "carlos.jr@opticaflow.com.br",
+  "username": "Carlos JR"
+}
+
+### 5. Deletar Funcionário (Usuario + Pessoa + Funcionario)
+DELETE {{baseUrl}}/funcionario/{{funcionarioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

@@ -157,7 +157,7 @@ model Filial {
 
   enderecos  Endereco_filial[]
   contatos   Contato_filial[]
-  config     Config_filial[]
+  config     Config_filial?
   agendas    Agenda[]
   atendimentos Atendimento[]
   prontuarios Prontuario[]
@@ -207,10 +207,11 @@ model Contato_filial {
 
 model Config_filial {
   id               String          @id @default(cuid())
-  filialId         String          
-  filial           Filial          @relation(fields: [filialId], references: [id], onDelete:Cascade)
+  filialId         String          @unique
   timezone         String?         
   moeda            String?            
+
+  filial           Filial          @relation(fields: [filialId], references: [id], onDelete:Cascade)
 }
 
 model Pessoa {
