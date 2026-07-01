@@ -1,0 +1,75 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@compraId = COLE_ID_COMPRA
+@produtoId = COLE_ID_PRODUTO
+@compraItemId = COLE_ID_COMPRA_ITEM
+
+### ----------------------------------------------------------------------
+### COMPRA ITEM
+### ----------------------------------------------------------------------
+
+### 1. Criar item da compra
+POST {{baseUrl}}/compra-item
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "compraId": "{{compraId}}",
+  "produtoId": "{{produtoId}}",
+  "quantidade": 10,
+  "valor_unitario": 45.90,
+  "desconto": 5
+}
+
+### 2. Listar itens por compra
+GET {{baseUrl}}/compra-item/compra/{{compraId}}?page=1&limit=10
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Buscar item por ID
+GET {{baseUrl}}/compra-item/{{compraItemId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Atualizar item da compra
+PUT {{baseUrl}}/compra-item/{{compraItemId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "quantidade": 12,
+  "valor_unitario": 47.5,
+  "desconto": 4
+}
+
+### 5. Teste negativo: subtotal negativo
+POST {{baseUrl}}/compra-item
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "compraId": "{{compraId}}",
+  "produtoId": "{{produtoId}}",
+  "quantidade": 1,
+  "valor_unitario": 10,
+  "desconto": 99
+}
+
+### 6. Deletar item da compra
+DELETE {{baseUrl}}/compra-item/{{compraItemId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

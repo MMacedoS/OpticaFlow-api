@@ -1,0 +1,74 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@empresaId = COLE_ID_EMPRESA
+@filialId = COLE_ID_FILIAL
+@fornecedorId = COLE_ID_FORNECEDOR
+@compraId = COLE_ID_COMPRA
+
+### ----------------------------------------------------------------------
+### COMPRA
+### ----------------------------------------------------------------------
+
+### 1. Criar compra
+POST {{baseUrl}}/compra
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "fornecedorId": "{{fornecedorId}}",
+  "dataCompra": "2026-07-01T10:00:00.000Z",
+  "status": "aberta",
+  "observacoes": "Compra mensal de reposicao"
+}
+
+### 2. Listar compras por empresa
+GET {{baseUrl}}/compra/empresa/{{empresaId}}?page=1&limit=10&search=reposicao&filialId={{filialId}}&fornecedorId={{fornecedorId}}&status=aberta
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Buscar compra por ID
+GET {{baseUrl}}/compra/{{compraId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Atualizar compra
+PUT {{baseUrl}}/compra/{{compraId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "status": "finalizada",
+  "observacoes": "Compra conferida e finalizada"
+}
+
+### 5. Teste negativo: fornecedor de outra filial
+POST {{baseUrl}}/compra
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "fornecedorId": "COLE_FORNECEDOR_DE_OUTRA_FILIAL"
+}
+
+### 6. Deletar compra (somente sem itens)
+DELETE {{baseUrl}}/compra/{{compraId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
