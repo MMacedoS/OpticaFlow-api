@@ -1542,10 +1542,11 @@ export class ReceitaService {
     }
 
     if (tipo === TipoReceita.medicamento && dto.medicamento) {
-      const detalheMedicamentoExistente = await tx.receitaMedicamento.findUnique({
-        where: { receitaId },
-        select: { id: true },
-      });
+      const detalheMedicamentoExistente =
+        await tx.receitaMedicamento.findUnique({
+          where: { receitaId },
+          select: { id: true },
+        });
 
       if (!detalheMedicamentoExistente && !dto.medicamento.medicamento) {
         throw new BadRequestException(
