@@ -19,6 +19,9 @@ import { AtendimentoModule } from './atendimento/atendimento.module';
 import { ProntuarioModule } from './prontuario/prontuario.module';
 import { ReceitaModule } from './receita/receita.module';
 import { ProdutoModule } from './produto/produto.module';
+import { EstoqueModule } from './estoque/estoque.module';
+import { EstoqueItemModule } from './estoque-item/estoque-item.module';
+import { MovimentoEstoqueModule } from './movimento-estoque/movimento-estoque.module';
 
 @Module({
   imports: [
@@ -42,6 +45,9 @@ import { ProdutoModule } from './produto/produto.module';
     ProntuarioModule,
     ReceitaModule,
     ProdutoModule,
+    EstoqueModule,
+    EstoqueItemModule,
+    MovimentoEstoqueModule,
   ],
   controllers: [AppController],
   providers: [AppService],

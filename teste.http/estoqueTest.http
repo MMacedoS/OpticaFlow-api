@@ -1,0 +1,69 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@empresaId = COLE_ID_EMPRESA
+@filialId = COLE_ID_FILIAL
+@estoqueId = COLE_ID_ESTOQUE
+
+### ----------------------------------------------------------------------
+### ESTOQUE
+### ----------------------------------------------------------------------
+
+### 1. Criar estoque
+POST {{baseUrl}}/estoque
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "nome": "Estoque Principal"
+}
+
+### 2. Listar estoques por empresa (com filtros opcionais)
+GET {{baseUrl}}/estoque/empresa/{{empresaId}}?page=1&limit=10&filialId={{filialId}}&search=principal
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Buscar estoque por ID
+GET {{baseUrl}}/estoque/{{estoqueId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Atualizar estoque
+PUT {{baseUrl}}/estoque/{{estoqueId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "nome": "Estoque Loja Centro"
+}
+
+### 5. Teste negativo: criar estoque duplicado por empresa/filial
+POST {{baseUrl}}/estoque
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "nome": "Estoque Duplicado"
+}
+
+### 6. Deletar estoque
+DELETE {{baseUrl}}/estoque/{{estoqueId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

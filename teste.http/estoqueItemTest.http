@@ -1,0 +1,72 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@estoqueId = COLE_ID_ESTOQUE
+@produtoId = COLE_ID_PRODUTO
+@estoqueItemId = COLE_ID_ESTOQUE_ITEM
+
+### ----------------------------------------------------------------------
+### ESTOQUE ITEM
+### ----------------------------------------------------------------------
+
+### 1. Criar item de estoque
+POST {{baseUrl}}/estoque-item
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "estoqueId": "{{estoqueId}}",
+  "produtoId": "{{produtoId}}",
+  "quantidade": 10,
+  "minimo": 2,
+  "maximo": 30
+}
+
+### 2. Listar itens por estoque
+GET {{baseUrl}}/estoque-item/estoque/{{estoqueId}}?page=1&limit=10&search=lente
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Buscar item por ID
+GET {{baseUrl}}/estoque-item/{{estoqueItemId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Atualizar item
+PUT {{baseUrl}}/estoque-item/{{estoqueItemId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "quantidade": 15,
+  "minimo": 3,
+  "maximo": 40
+}
+
+### 5. Teste negativo: minimo maior que maximo
+PUT {{baseUrl}}/estoque-item/{{estoqueItemId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "minimo": 50,
+  "maximo": 10
+}
+
+### 6. Deletar item
+DELETE {{baseUrl}}/estoque-item/{{estoqueItemId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

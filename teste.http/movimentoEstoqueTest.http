@@ -1,0 +1,95 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@empresaId = COLE_ID_EMPRESA
+@estoqueId = COLE_ID_ESTOQUE
+@produtoId = COLE_ID_PRODUTO
+@movimentoId = COLE_ID_MOVIMENTO
+
+### ----------------------------------------------------------------------
+### MOVIMENTO DE ESTOQUE
+### ----------------------------------------------------------------------
+
+### 1. Criar movimento de ENTRADA
+POST {{baseUrl}}/movimento-estoque
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "estoqueId": "{{estoqueId}}",
+  "produtoId": "{{produtoId}}",
+  "tipo": "entrada",
+  "quantidade": 20,
+  "motivo": "Reposicao fornecedor",
+  "referencia": "COMPRA-001"
+}
+
+### 2. Criar movimento de SAIDA
+POST {{baseUrl}}/movimento-estoque
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "estoqueId": "{{estoqueId}}",
+  "produtoId": "{{produtoId}}",
+  "tipo": "saida",
+  "quantidade": 5,
+  "motivo": "Venda balcão",
+  "referencia": "VENDA-001"
+}
+
+### 3. Listar movimentos por empresa
+GET {{baseUrl}}/movimento-estoque/empresa/{{empresaId}}?page=1&limit=10&tipo=entrada&estoqueId={{estoqueId}}&produtoId={{produtoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Buscar movimento por ID
+GET {{baseUrl}}/movimento-estoque/{{movimentoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 5. Atualizar movimento
+PUT {{baseUrl}}/movimento-estoque/{{movimentoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "tipo": "entrada",
+  "quantidade": 25,
+  "motivo": "Ajuste de nota",
+  "referencia": "COMPRA-001-REV"
+}
+
+### 6. Teste negativo: saída sem saldo
+POST {{baseUrl}}/movimento-estoque
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "estoqueId": "{{estoqueId}}",
+  "produtoId": "{{produtoId}}",
+  "tipo": "saida",
+  "quantidade": 999999,
+  "motivo": "Teste saldo"
+}
+
+### 7. Deletar movimento
+DELETE {{baseUrl}}/movimento-estoque/{{movimentoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
