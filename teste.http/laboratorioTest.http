@@ -1,0 +1,72 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@empresaId = COLE_ID_EMPRESA
+@laboratorioId = COLE_ID_LABORATORIO
+
+### ----------------------------------------------------------------------
+### LABORATORIO
+### ----------------------------------------------------------------------
+
+### 1. Criar laboratorio
+POST {{baseUrl}}/laboratorio
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "nome": "Laboratorio Vision Prime",
+  "cnpj": "12345678000199",
+  "email": "contato@visionprime.com.br",
+  "telefone": "11999998888",
+  "ativo": true
+}
+
+### 2. Listar laboratorios por empresa
+GET {{baseUrl}}/laboratorio/empresa/{{empresaId}}?page=1&limit=10&search=vision&ativo=true
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Buscar laboratorio por ID
+GET {{baseUrl}}/laboratorio/{{laboratorioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Atualizar laboratorio
+PUT {{baseUrl}}/laboratorio/{{laboratorioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "nome": "Laboratorio Vision Prime Plus",
+  "email": "suporte@visionprime.com.br",
+  "ativo": true
+}
+
+### 5. Teste negativo: nome duplicado na mesma empresa
+POST {{baseUrl}}/laboratorio
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "nome": "Laboratorio Vision Prime Plus"
+}
+
+### 6. Deletar laboratorio (somente sem ordens de servico vinculadas)
+DELETE {{baseUrl}}/laboratorio/{{laboratorioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

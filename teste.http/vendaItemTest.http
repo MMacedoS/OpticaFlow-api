@@ -1,0 +1,75 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@vendaId = COLE_ID_VENDA
+@produtoId = COLE_ID_PRODUTO
+@vendaItemId = COLE_ID_VENDA_ITEM
+
+### ----------------------------------------------------------------------
+### VENDA ITEM
+### ----------------------------------------------------------------------
+
+### 1. Criar item da venda
+POST {{baseUrl}}/venda-item
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "vendaId": "{{vendaId}}",
+  "produtoId": "{{produtoId}}",
+  "quantidade": 2,
+  "valor_unitario": 199.9,
+  "desconto": 10
+}
+
+### 2. Listar itens por venda
+GET {{baseUrl}}/venda-item/venda/{{vendaId}}?page=1&limit=10
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Buscar item por ID
+GET {{baseUrl}}/venda-item/{{vendaItemId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Atualizar item da venda
+PUT {{baseUrl}}/venda-item/{{vendaItemId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "quantidade": 3,
+  "valor_unitario": 205,
+  "desconto": 15
+}
+
+### 5. Teste negativo: estoque insuficiente
+POST {{baseUrl}}/venda-item
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "vendaId": "{{vendaId}}",
+  "produtoId": "{{produtoId}}",
+  "quantidade": 999999,
+  "valor_unitario": 10,
+  "desconto": 0
+}
+
+### 6. Deletar item da venda
+DELETE {{baseUrl}}/venda-item/{{vendaItemId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

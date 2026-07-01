@@ -1,0 +1,76 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@empresaId = COLE_ID_EMPRESA
+@filialId = COLE_ID_FILIAL
+@clienteId = COLE_ID_CLIENTE
+@atendimentoId = COLE_ID_ATENDIMENTO
+@vendaId = COLE_ID_VENDA
+
+### ----------------------------------------------------------------------
+### VENDA
+### ----------------------------------------------------------------------
+
+### 1. Criar venda
+POST {{baseUrl}}/venda
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "clienteId": "{{clienteId}}",
+  "atendimentoId": "{{atendimentoId}}",
+  "dataVenda": "2026-07-01T10:00:00.000Z",
+  "status": "aberta",
+  "observacoes": "Venda de teste"
+}
+
+### 2. Listar vendas por empresa
+GET {{baseUrl}}/venda/empresa/{{empresaId}}?page=1&limit=10&search=teste&filialId={{filialId}}&clienteId={{clienteId}}&atendimentoId={{atendimentoId}}&status=aberta
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Buscar venda por ID
+GET {{baseUrl}}/venda/{{vendaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Atualizar venda
+PUT {{baseUrl}}/venda/{{vendaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "status": "finalizada",
+  "observacoes": "Venda conferida e finalizada"
+}
+
+### 5. Teste negativo: cliente de outra filial
+POST {{baseUrl}}/venda
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "clienteId": "COLE_CLIENTE_DE_OUTRA_FILIAL"
+}
+
+### 6. Deletar venda (somente sem itens)
+DELETE {{baseUrl}}/venda/{{vendaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

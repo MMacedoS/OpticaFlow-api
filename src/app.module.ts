@@ -24,6 +24,9 @@ import { EstoqueItemModule } from './estoque-item/estoque-item.module';
 import { MovimentoEstoqueModule } from './movimento-estoque/movimento-estoque.module';
 import { CompraModule } from './compra/compra.module';
 import { CompraItemModule } from './compra-item/compra-item.module';
+import { VendaModule } from './venda/venda.module';
+import { VendaItemModule } from './venda-item/venda-item.module';
+import { LaboratorioModule } from './laboratorio/laboratorio.module';
 
 @Module({
   imports: [
@@ -52,6 +55,9 @@ import { CompraItemModule } from './compra-item/compra-item.module';
     MovimentoEstoqueModule,
     CompraModule,
     CompraItemModule,
+    VendaModule,
+    VendaItemModule,
+    LaboratorioModule,
   ],
   controllers: [AppController],
   providers: [AppService],
