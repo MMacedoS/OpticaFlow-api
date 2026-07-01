@@ -15,7 +15,10 @@ Content-Type: {{contentType}}
 
 @token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImNvbnRhdG9Ab3B0aWNhZmxvdy5jb20uYnIiLCJzdWIiOiJjbXF3aXhlMjYwMDA0MTNvM3l3NmFyNnZ4IiwidXNlcm5hbWUiOiJPcHRpY2EgRmxvdyBNYXRyaXoiLCJwZXNzb2FJZCI6bnVsbCwiaWF0IjoxNzgyODQzMTUxLCJleHAiOjE3ODI4NDY3NTF9.9e5sYZUyWLWVsZnNYqHiGilI8HP9LgcCaK7YBeB2WFI
 @filialId = cmqxxjnrj0000h6o3j2zwymnd
+@empresaId = cmqwixe1o000013o3o3widcsa
 @funcionarioId = cmr0ytulz00020usbvbcwf315
+@pacientePessoaId = COLE_ID_PESSOA_PACIENTE
+@funcionarioUsuarioId = COLE_ID_USUARIO_FUNCIONARIO
 
 ### ─────────────────────────────────────────────────────────────────────────
 ### FUNCIONARIO
@@ -60,3 +63,22 @@ Authorization: Bearer {{token}}
 DELETE {{baseUrl}}/funcionario/{{funcionarioId}}
 Content-Type: {{contentType}}
 Authorization: Bearer {{token}}
+
+### ----------------------------------------------------------------------
+### AGENDA (VALIDACAO DE PROFISSIONAL)
+### ----------------------------------------------------------------------
+
+### 6. Teste negativo: criar agenda com usuario de funcionario (esperado: 422)
+POST {{baseUrl}}/agenda
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "pessoaId": "{{pacientePessoaId}}",
+  "profissionalId": "{{funcionarioUsuarioId}}",
+  "dataHora": "2026-07-03T14:00:00.000Z",
+  "duracaoMin": 30,
+  "status": "agendado"
+}

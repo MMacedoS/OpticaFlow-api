@@ -1,0 +1,85 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@empresaId = COLE_ID_EMPRESA
+@filialId = COLE_ID_FILIAL
+@agendaId = COLE_ID_AGENDA
+@pacientePessoaId = COLE_ID_PESSOA_PACIENTE
+@profissionalUsuarioId = COLE_ID_USUARIO_PROFISSIONAL
+@clienteId = COLE_ID_CLIENTE
+@convenioId = COLE_ID_CONVENIO
+@atendimentoId = COLE_ID_ATENDIMENTO
+
+### ----------------------------------------------------------------------
+### ATENDIMENTO
+### ----------------------------------------------------------------------
+
+### 1. Criar atendimento
+POST {{baseUrl}}/atendimento
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "agendaId": "{{agendaId}}",
+  "pacienteId": "{{pacientePessoaId}}",
+  "profissionalId": "{{profissionalUsuarioId}}",
+  "clienteId": "{{clienteId}}",
+  "convenioId": "{{convenioId}}",
+  "dataAtendimento": "2026-07-02T14:30:00.000Z",
+  "status": "em_espera",
+  "queixa_principal": "Visao embaçada para longe",
+  "observacoes": "Paciente relatou sintomas ha 2 semanas"
+}
+
+### 2. Listar atendimentos por filial (com filtros opcionais)
+GET {{baseUrl}}/atendimento/filial/{{filialId}}?page=1&limit=10&search=visao&status=em_espera&profissionalId={{profissionalUsuarioId}}&pacienteId={{pacientePessoaId}}&dataInicio=2026-07-01T00:00:00.000Z&dataFim=2026-07-31T23:59:59.999Z
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Buscar atendimento por ID
+GET {{baseUrl}}/atendimento/{{atendimentoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Atualizar atendimento
+PUT {{baseUrl}}/atendimento/{{atendimentoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "status": "em_andamento",
+  "observacoes": "Paciente iniciou exame de refração"
+}
+
+### 5. Teste negativo: agenda já vinculada a outro atendimento
+POST {{baseUrl}}/atendimento
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "agendaId": "{{agendaId}}",
+  "pacienteId": "{{pacientePessoaId}}",
+  "status": "em_espera"
+}
+
+### 6. Deletar atendimento
+DELETE {{baseUrl}}/atendimento/{{atendimentoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

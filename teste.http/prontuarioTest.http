@@ -1,0 +1,536 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@empresaId = COLE_ID_EMPRESA
+@filialId = COLE_ID_FILIAL
+@pacientePessoaId = COLE_ID_PESSOA_PACIENTE
+@profissionalUsuarioId = COLE_ID_USUARIO_PROFISSIONAL
+@atendimentoId = COLE_ID_ATENDIMENTO
+@prontuarioId = COLE_ID_PRONTUARIO
+
+### ----------------------------------------------------------------------
+### PRONTUARIO
+### ----------------------------------------------------------------------
+
+### 1. Criar prontuario completo
+POST {{baseUrl}}/prontuario
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "atendimentoId": "{{atendimentoId}}",
+  "pacienteId": "{{pacientePessoaId}}",
+  "profissionalId": "{{profissionalUsuarioId}}",
+  "resumo_clinico": "Paciente com queixa de visao embaçada e cefaleia no fim do dia.",
+  "anamnese": {
+    "historico_pessoal": "Uso ocasional de colirio lubrificante.",
+    "historico_familiar": "Mae com historico de glaucoma.",
+    "alergias": "Nao relatadas.",
+    "medicamentos_uso": "Nenhum medicamento continuo.",
+    "observacoes": "Paciente trabalha mais de 8 horas por dia no computador."
+  },
+  "acuidade_visual": {
+    "od_sem_correcao": "20/40",
+    "oe_sem_correcao": "20/30",
+    "od_com_correcao": "20/25",
+    "oe_com_correcao": "20/20",
+    "observacoes": "Melhora com correcao de teste."
+  },
+  "refracao": {
+    "od_esferico": "-1.00",
+    "od_cilindrico": "-0.50",
+    "od_eixo": "180",
+    "oe_esferico": "-0.75",
+    "oe_cilindrico": "-0.25",
+    "oe_eixo": "170",
+    "dp": "62",
+    "adicao": "+1.00",
+    "observacoes": "Boa adaptacao na refracao subjetiva."
+  },
+  "ceratometria": {
+    "od_k1": "43.25",
+    "od_k2": "44.00",
+    "oe_k1": "43.00",
+    "oe_k2": "43.75",
+    "observacoes": "Sem irregularidades importantes."
+  },
+  "biomicroscopia": {
+    "descricao": "Segmento anterior sem alteracoes relevantes."
+  },
+  "fundoscopia": {
+    "descricao": "Papila corada, escavacao fisiologica preservada."
+  },
+  "pressao_intraocular": {
+    "od_mmhg": 14,
+    "oe_mmhg": 13,
+    "horario": "2026-07-02T15:00:00.000Z",
+    "observacoes": "Afericao sem intercorrencias."
+  },
+  "diagnosticos": [
+    {
+      "codigo": "H52.1",
+      "versao": "CID10",
+      "descricao": "Miopia"
+    },
+    {
+      "codigo": "H52.2",
+      "versao": "CID10",
+      "descricao": "Astigmatismo"
+    }
+  ],
+  "exames_complementares": [
+    {
+      "exame": "Topografia corneana",
+      "resultado": "Padrao dentro da normalidade.",
+      "dataExame": "2026-07-02T15:10:00.000Z"
+    }
+  ],
+  "evolucoes_clinicas": [
+    {
+      "descricao": "Paciente orientado sobre uso de correcao optica e retorno em 6 meses.",
+      "dataEvolucao": "2026-07-02T15:20:00.000Z"
+    }
+  ]
+}
+
+### 2. Listar prontuarios por filial com filtros opcionais
+GET {{baseUrl}}/prontuario/filial/{{filialId}}?page=1&limit=10&search=miopia&pacienteId={{pacientePessoaId}}&profissionalId={{profissionalUsuarioId}}&atendimentoId={{atendimentoId}}&dataInicio=2026-07-01T00:00:00.000Z&dataFim=2026-07-31T23:59:59.999Z
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 2.1 Listar anamneses por filial com paginação e filtro por profissional
+GET {{baseUrl}}/prontuario/filial/{{filialId}}/anamnese?page=1&limit=10&search=glaucoma&profissionalId={{profissionalUsuarioId}}&dataInicio=2026-07-01T00:00:00.000Z&dataFim=2026-07-31T23:59:59.999Z
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 2.2 Listar anamneses por profissional com filtro opcional por filial
+GET {{baseUrl}}/prontuario/profissional/{{profissionalUsuarioId}}/anamnese?page=1&limit=10&search=ardencia&filialId={{filialId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Buscar prontuario por ID
+GET {{baseUrl}}/prontuario/{{prontuarioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Atualizar prontuario
+PUT {{baseUrl}}/prontuario/{{prontuarioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "resumo_clinico": "Paciente com melhora parcial dos sintomas apos ajuste refracional.",
+  "fundoscopia": {
+    "descricao": "Fundoscopia mantida sem alteracoes patologicas."
+  },
+  "diagnosticos": [
+    {
+      "codigo": "H52.1",
+      "versao": "CID10",
+      "descricao": "Miopia atualizada"
+    }
+  ],
+  "evolucoes_clinicas": [
+    {
+      "descricao": "Retorno antecipado se houver piora da cefaleia.",
+      "dataEvolucao": "2026-07-10T10:00:00.000Z"
+    }
+  ]
+}
+
+### 4.1 Criar anamnese para prontuario existente
+POST {{baseUrl}}/prontuario/{{prontuarioId}}/anamnese
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "historico_pessoal": "Paciente com uso esporadico de lagrima artificial.",
+  "historico_familiar": "Pai com catarata.",
+  "alergias": "Sem alergias conhecidas.",
+  "medicamentos_uso": "Vitaminas.",
+  "observacoes": "Refere ardencia ao final do dia."
+}
+
+### 4.2 Buscar anamnese por prontuario
+GET {{baseUrl}}/prontuario/{{prontuarioId}}/anamnese
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.3 Atualizar anamnese por prontuario
+PUT {{baseUrl}}/prontuario/{{prontuarioId}}/anamnese
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "historico_pessoal": "Paciente com uso diario de lubrificante ocular.",
+  "historico_familiar": "Mae com glaucoma e pai com catarata.",
+  "observacoes": "Mantem queixa visual associada a uso prolongado de telas."
+}
+
+### 4.4 Deletar anamnese por prontuario
+DELETE {{baseUrl}}/prontuario/{{prontuarioId}}/anamnese
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.5 Criar acuidade visual para prontuario existente
+POST {{baseUrl}}/prontuario/{{prontuarioId}}/acuidade-visual
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "od_sem_correcao": "20/50",
+  "oe_sem_correcao": "20/40",
+  "od_com_correcao": "20/30",
+  "oe_com_correcao": "20/25",
+  "observacoes": "Teste de acuidade em ambiente controlado."
+}
+
+### 4.6 Buscar acuidade visual por prontuario
+GET {{baseUrl}}/prontuario/{{prontuarioId}}/acuidade-visual
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.7 Atualizar acuidade visual por prontuario
+PUT {{baseUrl}}/prontuario/{{prontuarioId}}/acuidade-visual
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "od_com_correcao": "20/25",
+  "oe_com_correcao": "20/20",
+  "observacoes": "Melhora com ajuste de lente."
+}
+
+### 4.8 Deletar acuidade visual por prontuario
+DELETE {{baseUrl}}/prontuario/{{prontuarioId}}/acuidade-visual
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.9 Criar refracao por prontuario
+POST {{baseUrl}}/prontuario/{{prontuarioId}}/refracao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "od_esferico": "-1.25",
+  "od_cilindrico": "-0.50",
+  "od_eixo": "180",
+  "oe_esferico": "-1.00",
+  "oe_cilindrico": "-0.25",
+  "oe_eixo": "170",
+  "dp": "62",
+  "adicao": "+1.00",
+  "observacoes": "Boa resposta subjetiva."
+}
+
+### 4.10 Buscar refracao por prontuario
+GET {{baseUrl}}/prontuario/{{prontuarioId}}/refracao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.11 Atualizar refracao por prontuario
+PUT {{baseUrl}}/prontuario/{{prontuarioId}}/refracao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "od_esferico": "-1.00",
+  "oe_esferico": "-0.75",
+  "observacoes": "Atualizacao apos novo teste."
+}
+
+### 4.12 Deletar refracao por prontuario
+DELETE {{baseUrl}}/prontuario/{{prontuarioId}}/refracao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.13 Criar ceratometria por prontuario
+POST {{baseUrl}}/prontuario/{{prontuarioId}}/ceratometria
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "od_k1": "43.25",
+  "od_k2": "44.00",
+  "oe_k1": "43.00",
+  "oe_k2": "43.75",
+  "observacoes": "Sem assimetria relevante."
+}
+
+### 4.14 Buscar ceratometria por prontuario
+GET {{baseUrl}}/prontuario/{{prontuarioId}}/ceratometria
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.15 Atualizar ceratometria por prontuario
+PUT {{baseUrl}}/prontuario/{{prontuarioId}}/ceratometria
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "observacoes": "Curvatura corneana mantida."
+}
+
+### 4.16 Deletar ceratometria por prontuario
+DELETE {{baseUrl}}/prontuario/{{prontuarioId}}/ceratometria
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.17 Criar biomicroscopia por prontuario
+POST {{baseUrl}}/prontuario/{{prontuarioId}}/biomicroscopia
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "descricao": "Segmento anterior sem alteracoes."
+}
+
+### 4.18 Buscar biomicroscopia por prontuario
+GET {{baseUrl}}/prontuario/{{prontuarioId}}/biomicroscopia
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.19 Atualizar biomicroscopia por prontuario
+PUT {{baseUrl}}/prontuario/{{prontuarioId}}/biomicroscopia
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "descricao": "Biomicroscopia com discreta hiperemia conjuntival."
+}
+
+### 4.20 Deletar biomicroscopia por prontuario
+DELETE {{baseUrl}}/prontuario/{{prontuarioId}}/biomicroscopia
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.21 Criar fundoscopia por prontuario
+POST {{baseUrl}}/prontuario/{{prontuarioId}}/fundoscopia
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "descricao": "Retina aplicada sem sinais de lesao."
+}
+
+### 4.22 Buscar fundoscopia por prontuario
+GET {{baseUrl}}/prontuario/{{prontuarioId}}/fundoscopia
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.23 Atualizar fundoscopia por prontuario
+PUT {{baseUrl}}/prontuario/{{prontuarioId}}/fundoscopia
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "descricao": "Fundoscopia sem progressao de achados."
+}
+
+### 4.24 Deletar fundoscopia por prontuario
+DELETE {{baseUrl}}/prontuario/{{prontuarioId}}/fundoscopia
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.25 Criar pressao intraocular por prontuario
+POST {{baseUrl}}/prontuario/{{prontuarioId}}/pressao-intraocular
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "od_mmhg": 14,
+  "oe_mmhg": 13,
+  "horario": "2026-07-12T14:30:00.000Z",
+  "observacoes": "Sem intercorrencias no tonometro."
+}
+
+### 4.26 Buscar pressao intraocular por prontuario
+GET {{baseUrl}}/prontuario/{{prontuarioId}}/pressao-intraocular
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.27 Atualizar pressao intraocular por prontuario
+PUT {{baseUrl}}/prontuario/{{prontuarioId}}/pressao-intraocular
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "od_mmhg": 15,
+  "oe_mmhg": 14,
+  "observacoes": "Afericao repetida apos descanso."
+}
+
+### 4.28 Deletar pressao intraocular por prontuario
+DELETE {{baseUrl}}/prontuario/{{prontuarioId}}/pressao-intraocular
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.29 Criar diagnostico por prontuario
+POST {{baseUrl}}/prontuario/{{prontuarioId}}/diagnosticos
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "codigo": "H52.1",
+  "versao": "CID10",
+  "descricao": "Miopia"
+}
+
+@diagnosticoId = COLE_ID_DIAGNOSTICO
+
+### 4.30 Listar diagnosticos por prontuario
+GET {{baseUrl}}/prontuario/{{prontuarioId}}/diagnosticos
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.31 Atualizar diagnostico por prontuario
+PUT {{baseUrl}}/prontuario/{{prontuarioId}}/diagnosticos/{{diagnosticoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "codigo": "H52.2",
+  "versao": "CID10",
+  "descricao": "Astigmatismo"
+}
+
+### 4.32 Deletar diagnostico por prontuario
+DELETE {{baseUrl}}/prontuario/{{prontuarioId}}/diagnosticos/{{diagnosticoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.33 Criar exame complementar por prontuario
+POST {{baseUrl}}/prontuario/{{prontuarioId}}/exames-complementares
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "exame": "Topografia corneana",
+  "resultado": "Padrao regular",
+  "dataExame": "2026-07-12T15:10:00.000Z"
+}
+
+@exameComplementarId = COLE_ID_EXAME_COMPLEMENTAR
+
+### 4.34 Listar exames complementares por prontuario
+GET {{baseUrl}}/prontuario/{{prontuarioId}}/exames-complementares
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.35 Atualizar exame complementar por prontuario
+PUT {{baseUrl}}/prontuario/{{prontuarioId}}/exames-complementares/{{exameComplementarId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "exame": "Paquimetria",
+  "resultado": "Dentro da faixa esperada"
+}
+
+### 4.36 Deletar exame complementar por prontuario
+DELETE {{baseUrl}}/prontuario/{{prontuarioId}}/exames-complementares/{{exameComplementarId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.37 Criar evolucao clinica por prontuario
+POST {{baseUrl}}/prontuario/{{prontuarioId}}/evolucoes-clinicas
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "descricao": "Paciente orientado sobre higiene ocular.",
+  "dataEvolucao": "2026-07-12T15:30:00.000Z"
+}
+
+@evolucaoClinicaId = COLE_ID_EVOLUCAO_CLINICA
+
+### 4.38 Listar evolucoes clinicas por prontuario
+GET {{baseUrl}}/prontuario/{{prontuarioId}}/evolucoes-clinicas
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.39 Atualizar evolucao clinica por prontuario
+PUT {{baseUrl}}/prontuario/{{prontuarioId}}/evolucoes-clinicas/{{evolucaoClinicaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "descricao": "Paciente orientado sobre retorno em 30 dias."
+}
+
+### 4.40 Deletar evolucao clinica por prontuario
+DELETE {{baseUrl}}/prontuario/{{prontuarioId}}/evolucoes-clinicas/{{evolucaoClinicaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.41 Listar refrações por filial
+GET {{baseUrl}}/prontuario/filial/{{filialId}}/refracao?page=1&limit=10&search=1.00&profissionalId={{profissionalUsuarioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.42 Listar ceratometrias por profissional
+GET {{baseUrl}}/prontuario/profissional/{{profissionalUsuarioId}}/ceratometria?page=1&limit=10&search=43&filialId={{filialId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.43 Listar biomicroscopias por filial
+GET {{baseUrl}}/prontuario/filial/{{filialId}}/biomicroscopia?page=1&limit=10&search=segmento
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.44 Listar fundoscopias por profissional
+GET {{baseUrl}}/prontuario/profissional/{{profissionalUsuarioId}}/fundoscopia?page=1&limit=10&search=retina&filialId={{filialId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.45 Listar pressoes intraoculares por filial
+GET {{baseUrl}}/prontuario/filial/{{filialId}}/pressao-intraocular?page=1&limit=10&search=tonometro
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.46 Listar diagnosticos por profissional
+GET {{baseUrl}}/prontuario/profissional/{{profissionalUsuarioId}}/diagnosticos?page=1&limit=10&search=H52&filialId={{filialId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.47 Listar exames complementares por filial
+GET {{baseUrl}}/prontuario/filial/{{filialId}}/exames-complementares?page=1&limit=10&search=topografia
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4.48 Listar evolucoes clinicas por profissional
+GET {{baseUrl}}/prontuario/profissional/{{profissionalUsuarioId}}/evolucoes-clinicas?page=1&limit=10&search=retorno&filialId={{filialId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 5. Teste negativo: atendimento ja vinculado a outro prontuario
+POST {{baseUrl}}/prontuario
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "atendimentoId": "{{atendimentoId}}",
+  "pacienteId": "{{pacientePessoaId}}"
+}
+
+### 6. Deletar prontuario
+DELETE {{baseUrl}}/prontuario/{{prontuarioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

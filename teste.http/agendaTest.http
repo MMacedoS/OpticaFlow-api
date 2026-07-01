@@ -1,0 +1,99 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@empresaId = COLE_ID_EMPRESA
+@filialId = COLE_ID_FILIAL
+@pacientePessoaId = COLE_ID_PESSOA_PACIENTE
+@profissionalOftalmologistaUsuarioId = COLE_ID_USUARIO_OFTALMOLOGISTA
+@profissionalOptometristaUsuarioId = COLE_ID_USUARIO_OPTOMETRISTA
+@agendaId = COLE_ID_AGENDA
+
+### ----------------------------------------------------------------------
+### AGENDA
+### ----------------------------------------------------------------------
+
+### 1. Criar agenda com profissional oftalmologista
+POST {{baseUrl}}/agenda
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "pessoaId": "{{pacientePessoaId}}",
+  "profissionalId": "{{profissionalOftalmologistaUsuarioId}}",
+  "dataHora": "2026-07-01T09:30:00.000Z",
+  "duracaoMin": 30,
+  "status": "agendado",
+  "observacao": "Primeira consulta"
+}
+
+### 2. Criar agenda com profissional optometrista
+POST {{baseUrl}}/agenda
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "pessoaId": "{{pacientePessoaId}}",
+  "profissionalId": "{{profissionalOptometristaUsuarioId}}",
+  "dataHora": "2026-07-01T10:30:00.000Z",
+  "duracaoMin": 20,
+  "status": "confirmado",
+  "observacao": "Retorno com optometrista"
+}
+
+### 3. Listar agendas por filial (com filtros opcionais)
+GET {{baseUrl}}/agenda/filial/{{filialId}}?page=1&limit=10&search=consulta&status=agendado&profissionalId={{profissionalOftalmologistaUsuarioId}}&dataInicio=2026-07-01T00:00:00.000Z&dataFim=2026-07-31T23:59:59.999Z
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Buscar agenda por ID
+GET {{baseUrl}}/agenda/{{agendaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 5. Atualizar agenda
+PUT {{baseUrl}}/agenda/{{agendaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "status": "confirmado",
+  "observacao": "Paciente confirmou presenca",
+  "duracaoMin": 40
+}
+
+### 6. Teste negativo: profissional invalido (usuario sem vinculo com oftalmologista/optometrista)
+POST {{baseUrl}}/agenda
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "pessoaId": "{{pacientePessoaId}}",
+  "profissionalId": "COLE_ID_USUARIO_NAO_MEDICO",
+  "dataHora": "2026-07-02T09:00:00.000Z",
+  "duracaoMin": 20,
+  "status": "agendado"
+}
+
+### 7. Deletar agenda
+DELETE {{baseUrl}}/agenda/{{agendaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

@@ -10,6 +10,13 @@ import { EmpresaModule } from './empresa/empresa.module';
 import { AcessoModule } from './acesso/acesso.module';
 import { FilialModule } from './filial/filial.module';
 import { FuncionarioModule } from './funcionario/funcionario.module';
+import { OptometristaModule } from './optometrista/optometrista.module';
+import { OftalmologistaModule } from './oftalmologista/oftalmologista.module';
+import { ResponsavelModule } from './responsavel/responsavel.module';
+import { FornecedorModule } from './fornecedor/fornecedor.module';
+import { AgendaModule } from './agenda/agenda.module';
+import { AtendimentoModule } from './atendimento/atendimento.module';
+import { ProntuarioModule } from './prontuario/prontuario.module';
 
 @Module({
   imports: [
@@ -24,6 +31,13 @@ import { FuncionarioModule } from './funcionario/funcionario.module';
     AcessoModule,
     FilialModule,
     FuncionarioModule,
+    OptometristaModule,
+    OftalmologistaModule,
+    ResponsavelModule,
+    FornecedorModule,
+    AgendaModule,
+    AtendimentoModule,
+    ProntuarioModule,
   ],
   controllers: [AppController],
   providers: [AppService],

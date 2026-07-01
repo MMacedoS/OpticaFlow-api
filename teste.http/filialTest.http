@@ -169,3 +169,19 @@ Authorization: Bearer {{token}}
 DELETE {{baseUrl}}/filial/{{filialId}}
 Content-Type: {{contentType}}
 Authorization: Bearer {{token}}
+
+### ─────────────────────────────────────────────────────────────────────────
+### AGENDA (INTEGRACAO COM FILIAL)
+### ─────────────────────────────────────────────────────────────────────────
+
+@agendaId = COLE_ID_AGENDA
+
+### 13. Listar agendas da filial
+GET {{baseUrl}}/agenda/filial/{{filialId}}?page=1&limit=10&search=&status=agendado
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 14. Buscar agenda por ID
+GET {{baseUrl}}/agenda/{{agendaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

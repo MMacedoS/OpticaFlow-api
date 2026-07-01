@@ -20,6 +20,20 @@ Content-Type: {{contentType}}
 @acessoId = cmqwjj7gq00022uo38itq6zp0
 @permissaoEmpresaListarId = cmqwk5bm1000047o3e0dv68jv
 @acessoEmpresaId = cmqwk8lin000147o3shmasm23
+@permissaoAgendaListarId = COLE_ID_PERMISSAO_AGENDA
+@acessoAgendaId = COLE_ID_ACESSO_AGENDA
+@permissaoProntuarioListarId = COLE_ID_PERMISSAO_PRONTUARIO_LISTAR
+@permissaoProntuarioDetalharId = COLE_ID_PERMISSAO_PRONTUARIO_DETALHAR
+@permissaoProntuarioCriarId = COLE_ID_PERMISSAO_PRONTUARIO_CRIAR
+@permissaoProntuarioAtualizarId = COLE_ID_PERMISSAO_PRONTUARIO_ATUALIZAR
+@permissaoProntuarioDeletarId = COLE_ID_PERMISSAO_PRONTUARIO_DELETAR
+@acessoProntuarioLeituraId = COLE_ID_ACESSO_PRONTUARIO_LEITURA
+@acessoProntuarioGestaoId = COLE_ID_ACESSO_PRONTUARIO_GESTAO
+@filialId = COLE_ID_FILIAL
+@atendimentoId = COLE_ID_ATENDIMENTO
+@pacientePessoaId = COLE_ID_PESSOA_PACIENTE
+@profissionalUsuarioId = COLE_ID_USUARIO_PROFISSIONAL
+@prontuarioId = COLE_ID_PRONTUARIO
 
 ### 1. Criar permissão
 POST {{baseUrl}}/acesso/permissao
@@ -131,5 +145,195 @@ Authorization: Bearer {{token}}
 
 ### 12. Testar ação sem permissão no módulo empresa (esperado: 403)
 DELETE {{baseUrl}}/empresa/COLE_ID_EMPRESA_ALVO
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 13. Criar permissao dinamica para modulo agenda (acao listar)
+POST {{baseUrl}}/acesso/permissao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "modulo": "agenda",
+  "acao": "listar",
+  "descricao": "Permite listar agendas"
+}
+
+### 14. Criar acesso para agenda/listar
+POST {{baseUrl}}/acesso
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "nome": "gestor_agenda_listar",
+  "descricao": "Acesso para leitura de agenda",
+  "permissaoIds": [
+    "{{permissaoAgendaListarId}}"
+  ]
+}
+
+### 15. Atribuir acesso de agenda/listar ao usuario
+POST {{baseUrl}}/acesso/atribuicao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "usuarioId": "{{usuarioId}}",
+  "acessoId": "{{acessoAgendaId}}"
+}
+
+### 16. Testar acesso ao controller agenda (listar por filial)
+GET {{baseUrl}}/agenda/filial/{{filialId}}?page=1&limit=10&search=
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 17. Criar permissao dinamica para prontuario/listar
+POST {{baseUrl}}/acesso/permissao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "modulo": "prontuario",
+  "acao": "listar",
+  "descricao": "Permite listar prontuarios da filial"
+}
+
+### 18. Criar permissao dinamica para prontuario/detalhar
+POST {{baseUrl}}/acesso/permissao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "modulo": "prontuario",
+  "acao": "detalhar",
+  "descricao": "Permite consultar um prontuario especifico"
+}
+
+### 19. Criar permissao dinamica para prontuario/criar
+POST {{baseUrl}}/acesso/permissao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "modulo": "prontuario",
+  "acao": "criar",
+  "descricao": "Permite criar prontuarios"
+}
+
+### 20. Criar permissao dinamica para prontuario/atualizar
+POST {{baseUrl}}/acesso/permissao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "modulo": "prontuario",
+  "acao": "atualizar",
+  "descricao": "Permite atualizar prontuarios"
+}
+
+### 21. Criar permissao dinamica para prontuario/deletar
+POST {{baseUrl}}/acesso/permissao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "modulo": "prontuario",
+  "acao": "deletar",
+  "descricao": "Permite deletar prontuarios"
+}
+
+### 22. Criar acesso para prontuario/leitura
+POST {{baseUrl}}/acesso
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "nome": "gestor_prontuario_leitura",
+  "descricao": "Acesso para leitura de prontuario",
+  "permissaoIds": [
+    "{{permissaoProntuarioListarId}}",
+    "{{permissaoProntuarioDetalharId}}"
+  ]
+}
+
+### 23. Criar acesso para prontuario/gestao
+POST {{baseUrl}}/acesso
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "nome": "gestor_prontuario_gestao",
+  "descricao": "Acesso para criar, atualizar e deletar prontuarios",
+  "permissaoIds": [
+    "{{permissaoProntuarioCriarId}}",
+    "{{permissaoProntuarioAtualizarId}}",
+    "{{permissaoProntuarioDeletarId}}"
+  ]
+}
+
+### 24. Atribuir acesso de leitura de prontuario ao usuario
+POST {{baseUrl}}/acesso/atribuicao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "usuarioId": "{{usuarioId}}",
+  "acessoId": "{{acessoProntuarioLeituraId}}"
+}
+
+### 25. Atribuir acesso de gestao de prontuario ao usuario
+POST {{baseUrl}}/acesso/atribuicao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "usuarioId": "{{usuarioId}}",
+  "acessoId": "{{acessoProntuarioGestaoId}}"
+}
+
+### 26. Testar acesso ao controller prontuario (listar por filial)
+GET {{baseUrl}}/prontuario/filial/{{filialId}}?page=1&limit=10&search=
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 27. Testar acesso ao controller prontuario (detalhar)
+GET {{baseUrl}}/prontuario/{{prontuarioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 28. Testar acesso ao controller prontuario (criar)
+POST {{baseUrl}}/prontuario
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "atendimentoId": "{{atendimentoId}}",
+  "pacienteId": "{{pacientePessoaId}}",
+  "profissionalId": "{{profissionalUsuarioId}}",
+  "resumo_clinico": "Criacao de prontuario validando permissao especifica."
+}
+
+### 29. Testar acesso ao controller prontuario (atualizar)
+PUT {{baseUrl}}/prontuario/{{prontuarioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "resumo_clinico": "Atualizacao de prontuario validando permissao especifica."
+}
+
+### 30. Testar acesso ao controller prontuario (deletar)
+DELETE {{baseUrl}}/prontuario/{{prontuarioId}}
 Content-Type: {{contentType}}
 Authorization: Bearer {{token}}
