@@ -63,7 +63,10 @@ export class AuditoriaController {
   }
 
   @Put(':id')
-  async updateAuditoria(@Param('id') id: string, @Body() dto: UpdateAuditoriaDto) {
+  async updateAuditoria(
+    @Param('id') id: string,
+    @Body() dto: UpdateAuditoriaDto,
+  ) {
     return this.auditoriaService.update(id, dto);
   }
 

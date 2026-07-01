@@ -118,7 +118,9 @@ export class AuditoriaService {
       ...(filialId && { filialId }),
       ...(usuarioId && { usuarioId }),
       ...(atendimentoId && { atendimentoId }),
-      ...(entidade && { entidade: { contains: entidade, mode: 'insensitive' } }),
+      ...(entidade && {
+        entidade: { contains: entidade, mode: 'insensitive' },
+      }),
       ...(entidadeId && { entidadeId }),
       ...(acao && { acao: { contains: acao, mode: 'insensitive' } }),
       ...(ip && { ip: { contains: ip, mode: 'insensitive' } }),

@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsObject, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 
 export class CreateAuditoriaDto {
   @IsString({ message: 'O empresaId deve ser um texto valido.' })
