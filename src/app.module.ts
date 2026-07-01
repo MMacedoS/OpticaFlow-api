@@ -17,6 +17,7 @@ import { FornecedorModule } from './fornecedor/fornecedor.module';
 import { AgendaModule } from './agenda/agenda.module';
 import { AtendimentoModule } from './atendimento/atendimento.module';
 import { ProntuarioModule } from './prontuario/prontuario.module';
+import { ReceitaModule } from './receita/receita.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { ProntuarioModule } from './prontuario/prontuario.module';
     AgendaModule,
     AtendimentoModule,
     ProntuarioModule,
+    ReceitaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

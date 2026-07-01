@@ -25,7 +25,10 @@ export class AtendimentoService {
       };
     }
 
-    const validacaoPaciente = await this.validarPaciente(dto.pacienteId, dto.filialId);
+    const validacaoPaciente = await this.validarPaciente(
+      dto.pacienteId,
+      dto.filialId,
+    );
     if (!validacaoPaciente.valido) {
       return { status: 422, message: validacaoPaciente.mensagem };
     }
@@ -347,7 +350,8 @@ export class AtendimentoService {
     const filialIdDestino = dto.filialId ?? atendimento.filialId;
     const agendaIdDestino = dto.agendaId ?? atendimento.agendaId;
     const pacienteIdDestino = dto.pacienteId ?? atendimento.pacienteId;
-    const profissionalIdDestino = dto.profissionalId ?? atendimento.profissionalId;
+    const profissionalIdDestino =
+      dto.profissionalId ?? atendimento.profissionalId;
     const clienteIdDestino = dto.clienteId ?? atendimento.clienteId;
     const convenioIdDestino = dto.convenioId ?? atendimento.convenioId;
 

@@ -1,0 +1,239 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@empresaId = COLE_ID_EMPRESA
+@filialId = COLE_ID_FILIAL
+@pacientePessoaId = COLE_ID_PESSOA_PACIENTE
+@profissionalUsuarioId = COLE_ID_USUARIO_PROFISSIONAL
+@atendimentoId = COLE_ID_ATENDIMENTO
+@prontuarioId = COLE_ID_PRONTUARIO
+@receitaId = COLE_ID_RECEITA
+@receitaLenteContatoId = COLE_ID_RECEITA_LENTE_CONTATO
+@receitaMedicamentoId = COLE_ID_RECEITA_MEDICAMENTO
+
+### 1. Criar receita de oculos
+POST {{baseUrl}}/receita
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "atendimentoId": "{{atendimentoId}}",
+  "prontuarioId": "{{prontuarioId}}",
+  "pacienteId": "{{pacientePessoaId}}",
+  "profissionalId": "{{profissionalUsuarioId}}",
+  "tipo": "oculos",
+  "observacoes": "Receita inicial para uso diario.",
+  "oculos": {
+    "od_esferico": "-1.00",
+    "od_cilindrico": "-0.50",
+    "od_eixo": "180",
+    "oe_esferico": "-0.75",
+    "oe_cilindrico": "-0.25",
+    "oe_eixo": "170",
+    "dp": "62",
+    "adicao": "+1.00",
+    "observacoes": "Boa adaptacao em teste subjetivo."
+  }
+}
+
+### 2. Listar receitas por filial
+GET {{baseUrl}}/receita/filial/{{filialId}}?page=1&limit=10&search=diario&pacienteId={{pacientePessoaId}}&profissionalId={{profissionalUsuarioId}}&atendimentoId={{atendimentoId}}&prontuarioId={{prontuarioId}}&tipo=oculos
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Listar receitas por profissional
+GET {{baseUrl}}/receita/profissional/{{profissionalUsuarioId}}?page=1&limit=10&filialId={{filialId}}&tipo=oculos
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Buscar receita por ID
+GET {{baseUrl}}/receita/{{receitaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 5. Atualizar receita
+PUT {{baseUrl}}/receita/{{receitaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "observacoes": "Paciente orientado sobre retorno em 6 meses.",
+  "oculos": {
+    "od_esferico": "-1.25",
+    "oe_esferico": "-1.00",
+    "observacoes": "Ajuste fino apos nova avaliacao."
+  }
+}
+
+### 6. Buscar detalhe de oculos
+GET {{baseUrl}}/receita/{{receitaId}}/oculos
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 7. Atualizar detalhe de oculos
+PUT {{baseUrl}}/receita/{{receitaId}}/oculos
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "observacoes": "Mantida prescricao com boa acuidade."
+}
+
+### 8. Listar detalhes de oculos por filial
+GET {{baseUrl}}/receita/filial/{{filialId}}/oculos?page=1&limit=10&search=acuidade
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 9. Listar detalhes de oculos por profissional
+GET {{baseUrl}}/receita/profissional/{{profissionalUsuarioId}}/oculos?page=1&limit=10&filialId={{filialId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 10. Criar receita de lente de contato
+POST {{baseUrl}}/receita
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "atendimentoId": "{{atendimentoId}}",
+  "prontuarioId": "{{prontuarioId}}",
+  "pacienteId": "{{pacientePessoaId}}",
+  "profissionalId": "{{profissionalUsuarioId}}",
+  "tipo": "lente_contato",
+  "observacoes": "Ajuste inicial para lente gelatinosa."
+}
+
+### 11. Criar detalhe de lente de contato (somente para receita tipo lente_contato)
+POST {{baseUrl}}/receita/{{receitaLenteContatoId}}/lente-contato
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "od_curva_base": "8.6",
+  "od_diametro": "14.2",
+  "od_grau": "-1.25",
+  "oe_curva_base": "8.6",
+  "oe_diametro": "14.2",
+  "oe_grau": "-1.00",
+  "material": "silicone hidrogel",
+  "marca": "Marca X"
+}
+
+### 12. Buscar detalhe de lente de contato
+GET {{baseUrl}}/receita/{{receitaLenteContatoId}}/lente-contato
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 13. Atualizar detalhe de lente de contato
+PUT {{baseUrl}}/receita/{{receitaLenteContatoId}}/lente-contato
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "od_grau": "-1.50",
+  "oe_grau": "-1.25",
+  "observacoes": "Reavaliacao apos 15 dias de uso."
+}
+
+### 14. Listar detalhes de lente de contato por filial
+GET {{baseUrl}}/receita/filial/{{filialId}}/lente-contato?page=1&limit=10&search=Marca&profissionalId={{profissionalUsuarioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 15. Listar detalhes de lente de contato por profissional
+GET {{baseUrl}}/receita/profissional/{{profissionalUsuarioId}}/lente-contato?page=1&limit=10&filialId={{filialId}}&search=silicone
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 16. Deletar detalhe de lente de contato
+DELETE {{baseUrl}}/receita/{{receitaLenteContatoId}}/lente-contato
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 17. Criar receita de medicamento
+POST {{baseUrl}}/receita
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "atendimentoId": "{{atendimentoId}}",
+  "prontuarioId": "{{prontuarioId}}",
+  "pacienteId": "{{pacientePessoaId}}",
+  "profissionalId": "{{profissionalUsuarioId}}",
+  "tipo": "medicamento",
+  "observacoes": "Prescricao de suporte pos-procedimento."
+}
+
+### 18. Criar detalhe de medicamento (somente para receita tipo medicamento)
+POST {{baseUrl}}/receita/{{receitaMedicamentoId}}/medicamento
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "medicamento": "Colirio lubrificante",
+  "dosagem": "1 gota",
+  "posologia": "3x ao dia",
+  "duracao": "30 dias"
+}
+
+### 19. Buscar detalhe de medicamento
+GET {{baseUrl}}/receita/{{receitaMedicamentoId}}/medicamento
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 20. Atualizar detalhe de medicamento
+PUT {{baseUrl}}/receita/{{receitaMedicamentoId}}/medicamento
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "medicamento": "Colirio anti-inflamatorio",
+  "dosagem": "1 gota",
+  "posologia": "2x ao dia",
+  "duracao": "14 dias",
+  "observacoes": "Reduzir uso se houver irritacao."
+}
+
+### 21. Listar detalhes de medicamento por filial
+GET {{baseUrl}}/receita/filial/{{filialId}}/medicamento?page=1&limit=10&search=colirio&profissionalId={{profissionalUsuarioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 22. Listar detalhes de medicamento por profissional
+GET {{baseUrl}}/receita/profissional/{{profissionalUsuarioId}}/medicamento?page=1&limit=10&filialId={{filialId}}&search=anti-inflamatorio
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 23. Deletar detalhe de medicamento
+DELETE {{baseUrl}}/receita/{{receitaMedicamentoId}}/medicamento
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 24. Deletar detalhe de oculos
+DELETE {{baseUrl}}/receita/{{receitaId}}/oculos
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 25. Deletar receita
+DELETE {{baseUrl}}/receita/{{receitaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
