@@ -1,0 +1,70 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@empresaId = COLE_ID_EMPRESA
+@convenioId = COLE_ID_CONVENIO
+
+### ----------------------------------------------------------------------
+### CONVENIO
+### ----------------------------------------------------------------------
+
+### 1. Criar convenio
+POST {{baseUrl}}/convenio
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "nome": "Convenio Visao Saude",
+  "registro": "REG-12345",
+  "ativo": true
+}
+
+### 2. Listar convenios por empresa
+GET {{baseUrl}}/convenio/empresa/{{empresaId}}?page=1&limit=10&search=visao&ativo=true
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Buscar convenio por ID
+GET {{baseUrl}}/convenio/{{convenioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Atualizar convenio
+PUT {{baseUrl}}/convenio/{{convenioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "nome": "Convenio Visao Saude Plus",
+  "registro": "REG-98765",
+  "ativo": true
+}
+
+### 5. Teste negativo: nome duplicado na mesma empresa
+POST {{baseUrl}}/convenio
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "nome": "Convenio Visao Saude Plus"
+}
+
+### 6. Deletar convenio (somente sem clientes/atendimentos vinculados)
+DELETE {{baseUrl}}/convenio/{{convenioId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

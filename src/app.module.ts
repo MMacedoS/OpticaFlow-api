@@ -27,6 +27,9 @@ import { CompraItemModule } from './compra-item/compra-item.module';
 import { VendaModule } from './venda/venda.module';
 import { VendaItemModule } from './venda-item/venda-item.module';
 import { LaboratorioModule } from './laboratorio/laboratorio.module';
+import { OrdemServicoModule } from './ordem-servico/ordem-servico.module';
+import { OrdemServicoItemModule } from './ordem-servico-item/ordem-servico-item.module';
+import { ConvenioModule } from './convenio/convenio.module';
 
 @Module({
   imports: [
@@ -58,6 +61,9 @@ import { LaboratorioModule } from './laboratorio/laboratorio.module';
     VendaModule,
     VendaItemModule,
     LaboratorioModule,
+    OrdemServicoModule,
+    OrdemServicoItemModule,
+    ConvenioModule,
   ],
   controllers: [AppController],
   providers: [AppService],
