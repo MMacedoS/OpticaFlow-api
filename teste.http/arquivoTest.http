@@ -1,0 +1,82 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@empresaId = COLE_ID_EMPRESA
+@arquivoId = COLE_ID_ARQUIVO
+@filialId = COLE_ID_FILIAL
+@pessoaId = COLE_ID_PESSOA
+@atendimentoId = COLE_ID_ATENDIMENTO
+@prontuarioId = COLE_ID_PRONTUARIO
+@enviadoPorId = COLE_ID_USUARIO
+
+### ----------------------------------------------------------------------
+### ARQUIVO
+### ----------------------------------------------------------------------
+
+### 1. Criar arquivo
+POST {{baseUrl}}/arquivo
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "pessoaId": "{{pessoaId}}",
+  "atendimentoId": "{{atendimentoId}}",
+  "prontuarioId": "{{prontuarioId}}",
+  "enviadoPorId": "{{enviadoPorId}}",
+  "nome": "laudo-clinico-2026.pdf",
+  "path": "uploads/empresa/{{empresaId}}/laudos/laudo-clinico-2026.pdf",
+  "mime_type": "application/pdf",
+  "tamanho": 245760
+}
+
+### 2. Listar arquivos por empresa
+GET {{baseUrl}}/arquivo/empresa/{{empresaId}}?page=1&limit=10&search=laudo&mimeType=application
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Buscar arquivo por ID
+GET {{baseUrl}}/arquivo/{{arquivoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Atualizar arquivo
+PUT {{baseUrl}}/arquivo/{{arquivoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "nome": "laudo-clinico-2026-revisado.pdf",
+  "mime_type": "application/pdf",
+  "tamanho": 248900
+}
+
+### 5. Teste negativo: criar com empresa invalida
+POST {{baseUrl}}/arquivo
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "empresa-invalida",
+  "nome": "arquivo-invalido.pdf",
+  "path": "uploads/arquivo-invalido.pdf"
+}
+
+### 6. Deletar arquivo
+DELETE {{baseUrl}}/arquivo/{{arquivoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

@@ -31,6 +31,9 @@ import { OrdemServicoModule } from './ordem-servico/ordem-servico.module';
 import { OrdemServicoItemModule } from './ordem-servico-item/ordem-servico-item.module';
 import { ConvenioModule } from './convenio/convenio.module';
 import { FinanceiroLancamentoModule } from './financeiro-lancamento/financeiro-lancamento.module';
+import { ArquivoModule } from './arquivo/arquivo.module';
+import { NotificacaoModule } from './notificacao/notificacao.module';
+import { AuditoriaModule } from './auditoria/auditoria.module';
 
 @Module({
   imports: [
@@ -66,6 +69,9 @@ import { FinanceiroLancamentoModule } from './financeiro-lancamento/financeiro-l
     OrdemServicoItemModule,
     ConvenioModule,
     FinanceiroLancamentoModule,
+    ArquivoModule,
+    NotificacaoModule,
+    AuditoriaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,0 +1,89 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@empresaId = COLE_ID_EMPRESA
+@notificacaoId = COLE_ID_NOTIFICACAO
+@filialId = COLE_ID_FILIAL
+@pessoaId = COLE_ID_PESSOA
+@usuarioDestinoId = COLE_ID_USUARIO_DESTINO
+@usuarioRemetenteId = COLE_ID_USUARIO_REMETENTE
+
+### ----------------------------------------------------------------------
+### NOTIFICACAO
+### ----------------------------------------------------------------------
+
+### 1. Criar notificacao
+POST {{baseUrl}}/notificacao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "pessoaId": "{{pessoaId}}",
+  "usuarioDestinoId": "{{usuarioDestinoId}}",
+  "usuarioRemetenteId": "{{usuarioRemetenteId}}",
+  "canal": "sistema",
+  "titulo": "Consulta confirmada",
+  "mensagem": "Sua consulta foi confirmada para 14:30."
+}
+
+### 2. Listar notificacoes por empresa
+GET {{baseUrl}}/notificacao/empresa/{{empresaId}}?page=1&limit=10&search=consulta&canal=sistema&lida=false
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Buscar notificacao por ID
+GET {{baseUrl}}/notificacao/{{notificacaoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Atualizar notificacao
+PUT {{baseUrl}}/notificacao/{{notificacaoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "titulo": "Consulta reagendada",
+  "mensagem": "Sua consulta foi reagendada para 15:00.",
+  "canal": "whatsapp"
+}
+
+### 5. Marcar notificacao como lida
+PUT {{baseUrl}}/notificacao/{{notificacaoId}}/marcar-lida
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 6. Marcar notificacao como nao lida
+PUT {{baseUrl}}/notificacao/{{notificacaoId}}/marcar-nao-lida
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 7. Teste negativo: criar com empresa invalida
+POST {{baseUrl}}/notificacao
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "empresa-invalida",
+  "titulo": "Teste invalido",
+  "mensagem": "Notificacao com empresa invalida"
+}
+
+### 8. Deletar notificacao
+DELETE {{baseUrl}}/notificacao/{{notificacaoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

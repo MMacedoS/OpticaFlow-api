@@ -1,0 +1,87 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@empresaId = COLE_ID_EMPRESA
+@auditoriaId = COLE_ID_AUDITORIA
+@filialId = COLE_ID_FILIAL
+@usuarioId = COLE_ID_USUARIO
+@atendimentoId = COLE_ID_ATENDIMENTO
+
+### ----------------------------------------------------------------------
+### AUDITORIA
+### ----------------------------------------------------------------------
+
+### 1. Criar auditoria
+POST {{baseUrl}}/auditoria
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "filialId": "{{filialId}}",
+  "usuarioId": "{{usuarioId}}",
+  "atendimentoId": "{{atendimentoId}}",
+  "entidade": "Atendimento",
+  "entidadeId": "{{atendimentoId}}",
+  "acao": "update",
+  "dados_antes": {
+    "status": "em_espera"
+  },
+  "dados_depois": {
+    "status": "em_andamento"
+  },
+  "ip": "127.0.0.1",
+  "user_agent": "PostmanRuntime/7.43.0"
+}
+
+### 2. Listar auditorias por empresa
+GET {{baseUrl}}/auditoria/empresa/{{empresaId}}?page=1&limit=10&search=Atendimento&entidade=Atendimento&acao=update
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 3. Buscar auditoria por ID
+GET {{baseUrl}}/auditoria/{{auditoriaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Atualizar auditoria
+PUT {{baseUrl}}/auditoria/{{auditoriaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "acao": "manual_adjust",
+  "dados_depois": {
+    "status": "concluido"
+  },
+  "ip": "10.0.0.1"
+}
+
+### 5. Teste negativo: criar com empresa invalida
+POST {{baseUrl}}/auditoria
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "empresa-invalida",
+  "entidade": "Atendimento",
+  "acao": "create"
+}
+
+### 6. Deletar auditoria
+DELETE {{baseUrl}}/auditoria/{{auditoriaId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
