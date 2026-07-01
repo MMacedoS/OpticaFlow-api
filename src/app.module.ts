@@ -30,6 +30,7 @@ import { LaboratorioModule } from './laboratorio/laboratorio.module';
 import { OrdemServicoModule } from './ordem-servico/ordem-servico.module';
 import { OrdemServicoItemModule } from './ordem-servico-item/ordem-servico-item.module';
 import { ConvenioModule } from './convenio/convenio.module';
+import { FinanceiroLancamentoModule } from './financeiro-lancamento/financeiro-lancamento.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { ConvenioModule } from './convenio/convenio.module';
     OrdemServicoModule,
     OrdemServicoItemModule,
     ConvenioModule,
+    FinanceiroLancamentoModule,
   ],
   controllers: [AppController],
   providers: [AppService],
