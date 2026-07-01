@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma, TipoReceita } from '@prisma/client';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -1458,6 +1458,12 @@ export class ReceitaService {
     }
 
     if (tipo === TipoReceita.medicamento && dto.medicamento) {
+      if (!dto.medicamento.medicamento) {
+        throw new BadRequestException(
+          'Campo medicamento é obrigatório para receitas do tipo medicamento.',
+        );
+      }
+
       await tx.receitaMedicamento.create({
         data: {
           receitaId,
@@ -1536,11 +1542,22 @@ export class ReceitaService {
     }
 
     if (tipo === TipoReceita.medicamento && dto.medicamento) {
+      const detalheMedicamentoExistente = await tx.receitaMedicamento.findUnique({
+        where: { receitaId },
+        select: { id: true },
+      });
+
+      if (!detalheMedicamentoExistente && !dto.medicamento.medicamento) {
+        throw new BadRequestException(
+          'Campo medicamento é obrigatório para receitas do tipo medicamento.',
+        );
+      }
+
       await tx.receitaMedicamento.upsert({
         where: { receitaId },
         create: {
           receitaId,
-          medicamento: dto.medicamento.medicamento,
+          medicamento: dto.medicamento.medicamento ?? '',
           dosagem: dto.medicamento.dosagem,
           posologia: dto.medicamento.posologia,
           duracao: dto.medicamento.duracao,

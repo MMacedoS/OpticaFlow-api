@@ -1,0 +1,95 @@
+### Configuracoes Iniciais (Variaveis)
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### 0. Login para obter token
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "contato@opticaflow.com.br",
+  "senha": "11222333000181"
+}
+
+###
+
+@token = COLE_SEU_TOKEN
+@empresaId = COLE_ID_EMPRESA
+@produtoId = COLE_ID_PRODUTO
+
+### ----------------------------------------------------------------------
+### PRODUTO
+### ----------------------------------------------------------------------
+
+### 1. Criar produto - armacao
+POST {{baseUrl}}/produto
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "nome": "Armacao Titanium Vision",
+  "sku": "ARM-TIT-001",
+  "tipo": "armacao",
+  "categoria": "Premium",
+  "descricao": "Armacao leve em titanium",
+  "preco_custo": 120.50,
+  "preco_venda": 249.90,
+  "ativo": true
+}
+
+### 2. Criar produto - lente
+POST {{baseUrl}}/produto
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "nome": "Lente Antirreflexo Premium",
+  "sku": "LEN-ANTI-001",
+  "tipo": "lente",
+  "categoria": "Tratamento",
+  "descricao": "Lente com antirreflexo e protecao UV",
+  "preco_custo": 80,
+  "preco_venda": 159.9,
+  "ativo": true
+}
+
+### 3. Listar produtos por empresa (com filtros opcionais)
+GET {{baseUrl}}/produto/empresa/{{empresaId}}?page=1&limit=10&search=lente&tipo=lente&ativo=true
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 4. Buscar produto por ID
+GET {{baseUrl}}/produto/{{produtoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### 5. Atualizar produto
+PUT {{baseUrl}}/produto/{{produtoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "nome": "Lente Antirreflexo Ultra",
+  "preco_venda": 179.90,
+  "ativo": true
+}
+
+### 6. Teste negativo: SKU duplicado na mesma empresa
+POST {{baseUrl}}/produto
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "empresaId": "{{empresaId}}",
+  "nome": "Produto Duplicado",
+  "sku": "LEN-ANTI-001",
+  "tipo": "acessorio",
+  "preco_venda": 49.90
+}
+
+### 7. Deletar produto
+DELETE {{baseUrl}}/produto/{{produtoId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
