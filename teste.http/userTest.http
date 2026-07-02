@@ -7,13 +7,13 @@ POST {{baseUrl}}/auth/login
 Content-Type: {{contentType}}
 
 {
-  "email": "joao@gmail.com",
-  "senha": "@Senha_123"
+  "email": "superadmin@opticaflow.local",
+  "senha": "SuperAdmin@123"
 }
 
 ###
 
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImpvYW9AZ21haWwuY29tIiwic3ViIjoiY21xdm9qbGJjMDAwMG44b3l5c3dhOTJldyIsInVzZXJuYW1lIjoiSm_Do28gU2lsdmEiLCJwZXNzb2FJZCI6bnVsbCwiaWF0IjoxNzgyNTc0Mjg4LCJleHAiOjE3ODI1Nzc4ODh9.uAdwW_UVjaZ6pNzbOYnr1V6HOKant2Els-rBX4ILbDA
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InN1cGVyYWRtaW5Ab3B0aWNhZmxvdy5sb2NhbCIsInN1YiI6ImNtcjJvZjB6MzAwOWhlbnNia3hhcXJsZmoiLCJ1c2VybmFtZSI6InN1cGVyYWRtaW4iLCJwZXNzb2FJZCI6bnVsbCwiaWF0IjoxNzgyOTQ2ODc3LCJleHAiOjE3ODI5NTA0Nzd9.AV3BLaG9MtvrvEq7lD3ZvxyIMkA9I37MecDCrmiWuw0
 
 ### 1. Criar um novo Usuário (Testa as validações do DTO)
 POST {{baseUrl}}/usuario
@@ -22,17 +22,17 @@ Authorization: Bearer {{token}}
 
 {
   "username": "João Silva",
-  "email": "joao@gmail.com",
-  "senha": "@Senha_123"
+  "email": "admin@opticaflow.com",
+  "senha": "@admin_123"
 }
 
 ###  2. Listar todos os Usuários (Testa paginação e busca)
-GET {{baseUrl}}/usuario?page=1&limit=10&search=João
+GET {{baseUrl}}/usuario?page=1&limit=10&search=
 Content-Type: {{contentType}}
 Authorization: Bearer {{token}}
 
 #### 3. Deletar um Usuário pelo ID
-DELETE {{baseUrl}}/usuario/cmqvj2fvi000065mk2y89xv0h
+DELETE {{baseUrl}}/usuario/cmr2nevif00009osb6k85nlvi
 Content-Type: {{contentType}}
 Authorization: Bearer {{token}}
 

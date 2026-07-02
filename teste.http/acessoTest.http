@@ -7,13 +7,15 @@ POST {{baseUrl}}/auth/login
 Content-Type: {{contentType}}
 
 {
-  "email": "joao@gmail.com",
-  "senha": "@Senha_123"
+  "email": "admin@opticaflow.com",
+  "senha": "@admin_123"
 }
+
 
 ###
 
-@token = iIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImNvbnRhdG9Ab3B0aWNhZmxvdy5jb20uYnIiLCJzdWIiOiJjbXF3aXhlMjYwMDA0MTNvM3l3NmFyNnZ4IiwidXNlcm5hbWUiOiJPcHRpY2EgRmxvdyBNYXRyaXoiLCJwZXNzb2FJZCI6bnVsbCwiaWF0IjoxNzgyODQzMTUxLCJleHAiOjE3ODI4NDY3NTF9.9e5sYZUyWLWVsZnNYqHiGilI8HP9LgcCaK7YBeB2WFI
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG9wdGljYWZsb3cuY29tIiwic3ViIjoiY21yMm5ldmlmMDAwMDlvc2I2azg1bmx2aSIsInVzZXJuYW1lIjoiSm_Do28gU2lsdmEiLCJwZXNzb2FJZCI6bnVsbCwiaWF0IjoxNzgyOTQ1MDIwLCJleHAiOjE3ODI5NDg2MjB9.WXi5RurNNSWcltHgvQ23fidKPivjYLy7ocoP0X3xhSU
+
 @empresaId = cmqwixe1o000013o3o3widcsa
 @usuarioId = cmr0ytulu00010usb18ntsviy
 @permissaoId = cmqwjhwe300012uo35cqjrf5e

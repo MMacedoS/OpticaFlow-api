@@ -13,7 +13,7 @@ Content-Type: {{contentType}}
 
 ###
 
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImNvbnRhdG9Ab3B0aWNhZmxvdy5jb20uYnIiLCJzdWIiOiJjbXF3aXhlMjYwMDA0MTNvM3l3NmFyNnZ4IiwidXNlcm5hbWUiOiJPcHRpY2EgRmxvdyBNYXRyaXoiLCJwZXNzb2FJZCI6bnVsbCwiaWF0IjoxNzgyNjU5NTU3LCJleHAiOjE3ODI2NjMxNTd9._PbozkOo72kAE2Q5r7LaANsKSqA5r5yPOd_U-5BHRYo
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG9wdGljYWZsb3cuY29tIiwic3ViIjoiY21yMm5ldmlmMDAwMDlvc2I2azg1bmx2aSIsInVzZXJuYW1lIjoiSm_Do28gU2lsdmEiLCJwZXNzb2FJZCI6bnVsbCwiaWF0IjoxNzgyOTQ1MDIwLCJleHAiOjE3ODI5NDg2MjB9.WXi5RurNNSWcltHgvQ23fidKPivjYLy7ocoP0X3xhSU
 
 ### 1. Criar nova Empresa (cria também um usuário automaticamente)
 # Senha do usuário criado será o CNPJ sem máscara: 11222333000181

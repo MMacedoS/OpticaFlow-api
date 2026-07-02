@@ -19,17 +19,44 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
+  private isBcryptHash(value: string): boolean {
+    return /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(value);
+  }
+
+  private async comparePassword(
+    plainPassword: string,
+    storedPassword: string,
+  ): Promise<boolean> {
+    if (!storedPassword) {
+      return false;
+    }
+
+    // Compatibilidade com registros antigos onde a senha pode ter sido salva em texto puro.
+    if (!this.isBcryptHash(storedPassword)) {
+      return plainPassword === storedPassword;
+    }
+
+    try {
+      return await bcrypt.compare(plainPassword, storedPassword);
+    } catch {
+      return false;
+    }
+  }
+
   async login(dto: LoginDto): Promise<ResponseJson> {
     const usuario = await this.usuarioService.findByEmail(dto.email);
 
-    if (!usuario) {
+    if (!usuario?.senha) {
       return {
         status: 401,
         message: 'Usuário não encontrado, verifique os dados inseridos.',
       };
     }
 
-    const isPasswordValid = await bcrypt.compare(dto.senha, usuario.senha);
+    const isPasswordValid = await this.comparePassword(
+      dto.senha,
+      usuario.senha,
+    );
 
     if (!isPasswordValid) {
       return {
@@ -66,7 +93,7 @@ export class AuthService {
 
   async validateTokenAndGetPayload(token: string): Promise<JwtPayload | null> {
     try {
-      const decoded = this.jwtService.verify(token) as JwtPayload;
+      const decoded = this.jwtService.verify<JwtPayload>(token);
       const usuario = await this.usuarioService.findById(decoded.sub);
 
       if (!usuario) {

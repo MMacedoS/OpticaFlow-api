@@ -34,13 +34,19 @@ export class UsuarioService {
     let usuario;
 
     try {
-      usuario = await this.prisma.usuario.create({
-        data: {
-          email: dto.email,
-          senha: passwordHash,
-          username: dto.username,
-          pessoaId: dto.pessoaId,
-        },
+      usuario = await this.prisma.$transaction(async (tx) => {
+        const novoUsuario = await tx.usuario.create({
+          data: {
+            email: dto.email,
+            senha: passwordHash,
+            username: dto.username,
+            pessoaId: dto.pessoaId,
+          },
+        });
+
+        await this.vincularTodosAcessos(novoUsuario.id, tx);
+
+        return novoUsuario;
       });
     } catch (error) {
       if (
@@ -67,6 +73,29 @@ export class UsuarioService {
         pessoaId: usuario.pessoaId,
       },
     };
+  }
+
+  private async vincularTodosAcessos(
+    usuarioId: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    const acessos = await tx.acesso.findMany({
+      select: {
+        id: true,
+      },
+    });
+
+    if (acessos.length === 0) {
+      return;
+    }
+
+    await tx.atribuicao.createMany({
+      data: acessos.map((acesso) => ({
+        usuarioId,
+        acessoId: acesso.id,
+      })),
+      skipDuplicates: true,
+    });
   }
 
   async findByEmail(email: string): Promise<any> {
