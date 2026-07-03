@@ -13,8 +13,9 @@ Content-Type: {{contentType}}
 
 ###
 
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InN1cGVyYWRtaW5Ab3B0aWNhZmxvdy5sb2NhbCIsInN1YiI6ImNtcjJvZjB6MzAwOWhlbnNia3hhcXJsZmoiLCJ1c2VybmFtZSI6InN1cGVyYWRtaW4iLCJwZXNzb2FJZCI6bnVsbCwiaWF0IjoxNzgyOTQ2ODc3LCJleHAiOjE3ODI5NTA0Nzd9.AV3BLaG9MtvrvEq7lD3ZvxyIMkA9I37MecDCrmiWuw0
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InN1cGVyYWRtaW5Ab3B0aWNhZmxvdy5sb2NhbCIsInN1YiI6ImNtcjJvZjB6MzAwOWhlbnNia3hhcXJsZmoiLCJ1c2VybmFtZSI6InN1cGVyYWRtaW4iLCJwZXNzb2FJZCI6bnVsbCwiaWF0IjoxNzgzMDAzMzc1LCJleHAiOjE3ODMwMDQyNzV9.4vZVUrbqSTfbPCRGHQleT5t_f0bn2CF8VLA30Z36Sqk
 
+@refreshToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXIyb2YwejMwMDloZW5zYmt4YXFybGZqIiwidHlwZSI6InJlZnJlc2giLCJpYXQiOjE3ODMwMDQ5OTMsImV4cCI6MTc4MzYwOTc5M30.eLG0Cu4Hbm4Csr1GcfiK3got39xNGym_tQldi9m7V-w
 ### 1. Criar um novo Usuário (Testa as validações do DTO)
 POST {{baseUrl}}/usuario
 Content-Type: {{contentType}}
@@ -36,3 +37,10 @@ DELETE {{baseUrl}}/usuario/cmr2nevif00009osb6k85nlvi
 Content-Type: {{contentType}}
 Authorization: Bearer {{token}}
 
+#### 4. refresh token JWT
+POST {{baseUrl}}/auth/refresh
+Content-Type: {{contentType}}
+
+{
+  "refresh_token": "{{refreshToken}}"
+}

@@ -1,4 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuthService } from 'src/auth/auth.service';
 
 interface RequestWithUser {
@@ -22,13 +27,13 @@ export class AuthGuard implements CanActivate {
     const token = this.extractTokenFromHeader(request);
 
     if (!token) {
-      return false;
+      throw new UnauthorizedException('Token não informado.');
     }
 
     const payload = await this.authService.validateTokenAndGetPayload(token);
 
     if (!payload) {
-      return false;
+      throw new UnauthorizedException('Token inválido ou expirado.');
     }
 
     request.user = payload;

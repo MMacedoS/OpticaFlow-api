@@ -354,12 +354,22 @@ export class AcessoService {
 
     const atribuicoes = await this.prisma.atribuicao.findMany({
       where: { usuarioId },
-      include: {
+      select: {
         acesso: {
-          include: {
+          select: {
+            id: true,
+            nome: true,
+            descricao: true,
             permissao: {
-              include: {
-                permissao: true,
+              select: {
+                permissao: {
+                  select: {
+                    id: true,
+                    modulo: true,
+                    acao: true,
+                    descricao: true,
+                  },
+                },
               },
             },
           },
@@ -370,13 +380,12 @@ export class AcessoService {
       },
     });
 
+    console.log('Atribuições do usuário:', atribuicoes);
+
     return {
       status: 200,
       message: 'Atribuições carregadas com sucesso.',
-      data: {
-        usuario,
-        atribuicoes,
-      },
+      data: atribuicoes,
     };
   }
 }

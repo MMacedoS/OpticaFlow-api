@@ -13,7 +13,7 @@ import { AuthGuard } from 'src/guards/auth/auth.guard';
 import { EmpresaDto } from './dto/empresa.dto';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 
-@Controller('empresa')
+@Controller('empresas')
 @UseGuards(AuthGuard, AcessoGuard)
 export class EmpresaController {
   constructor(private readonly empresaService: EmpresaService) {}
@@ -23,16 +23,14 @@ export class EmpresaController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
+    @Query('status') status?: string,
   ) {
     const empresas = await this.empresaService.findAll(
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 10,
       search ? search : '',
+      status ? status : '',
     );
-
-    if (!empresas || empresas.length === 0) {
-      return { error: 'Nenhuma empresa encontrada' };
-    }
 
     return empresas;
   }

@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import * as bcrypt from 'bcrypt';
-import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '@prisma/client';
 import { Pool } from 'pg';
 
 type PermissaoCatalogo = {
@@ -179,24 +179,17 @@ const superAdminUsername =
 const superAdminPassword =
   process.env.SEED_SUPER_ADMIN_PASSWORD ?? 'SuperAdmin@123';
 
-function createPrismaClient(): PrismaClient {
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    max: 20,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
-  });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
 
-  const adapter = new PrismaPg(pool);
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
-  return new PrismaClient({ adapter });
-}
-
-async function ensureAcesso(
-  prisma: PrismaClient,
-  nome: string,
-  descricao: string,
-) {
+async function ensureAcesso(nome: string, descricao: string) {
   const acessoExistente = await prisma.acesso.findUnique({
     where: { nome },
   });
@@ -214,7 +207,6 @@ async function ensureAcesso(
 }
 
 async function ensurePermissao(
-  prisma: PrismaClient,
   modulo: string,
   acao: string,
   descricao: string,
@@ -241,58 +233,70 @@ async function ensurePermissao(
 }
 
 async function main() {
-  const prisma = createPrismaClient();
-
   try {
-    const permissaoMap = new Map<string, { id: string }>();
+    console.log('Iniciando seed de acessos e permissões...');
 
+    const permissaoMap = new Map<string, { id: string }>();
+    const acessoMap = new Map<string, { id: string }>();
+
+    // 1. Garante todos os acessos e permissões do catálogo
     for (const acesso of acessos) {
+      const acessoRegistro = await ensureAcesso(
+        acesso.nomeAcesso,
+        acesso.descricaoAcesso,
+      );
+
+      acessoMap.set(acesso.nomeAcesso, { id: acessoRegistro.id });
+
       for (const permissao of permissoesPadrao) {
-        const registro = await ensurePermissao(
-          prisma,
+        const permissaoRegistro = await ensurePermissao(
           acesso.modulo,
           permissao.acao,
           `${permissao.descricao} em ${acesso.descricaoAcesso.toLowerCase()}`,
         );
 
         permissaoMap.set(`${acesso.modulo}:${permissao.acao}`, {
-          id: registro.id,
+          id: permissaoRegistro.id,
         });
       }
     }
 
+    // 2. Relaciona cada acesso do catálogo com todas as ações do seu módulo
+    const relacoesAcessoPermissao: { acessoId: string; permissaoId: string }[] =
+      [];
     for (const acesso of acessos) {
-      const acessoRegistro = await ensureAcesso(
-        prisma,
-        acesso.nomeAcesso,
-        acesso.descricaoAcesso,
-      );
+      const acessoRegistro = acessoMap.get(acesso.nomeAcesso);
+      if (!acessoRegistro) {
+        continue;
+      }
 
-      const permissaoIds = permissoesPadrao
-        .map((permissao) =>
-          permissaoMap.get(`${acesso.modulo}:${permissao.acao}`),
-        )
-        .filter((permissao): permissao is { id: string } => Boolean(permissao));
+      for (const permissao of permissoesPadrao) {
+        const permissaoRegistro = permissaoMap.get(
+          `${acesso.modulo}:${permissao.acao}`,
+        );
 
-      await prisma.acessoPermissao.createMany({
-        data: permissaoIds.map((permissao) => ({
+        if (!permissaoRegistro) {
+          continue;
+        }
+
+        relacoesAcessoPermissao.push({
           acessoId: acessoRegistro.id,
-          permissaoId: permissao.id,
-        })),
-        skipDuplicates: true,
-      });
+          permissaoId: permissaoRegistro.id,
+        });
+      }
     }
 
-    const superAdminSenhaHash = await bcrypt.hash(superAdminPassword, 10);
+    // 3. Salva os vínculos de permissões em lote
+    await prisma.acessoPermissao.createMany({
+      data: relacoesAcessoPermissao,
+      skipDuplicates: true,
+    });
 
+    // 6. Upsert do Usuário Admin principal
+    const superAdminSenhaHash = await bcrypt.hash(superAdminPassword, 10);
     const superAdmin = await prisma.usuario.upsert({
-      where: {
-        email: superAdminEmail,
-      },
-      update: {
-        username: superAdminUsername,
-        senha: superAdminSenhaHash,
-      },
+      where: { email: superAdminEmail },
+      update: { username: superAdminUsername, senha: superAdminSenhaHash },
       create: {
         email: superAdminEmail,
         username: superAdminUsername,
@@ -300,6 +304,7 @@ async function main() {
       },
     });
 
+    // 5. Atribui TODOS os acessos criados ao Super Admin
     const todosAcessos = await prisma.acesso.findMany({
       select: {
         id: true,
@@ -314,13 +319,16 @@ async function main() {
       skipDuplicates: true,
     });
 
-    console.log(`Seed concluido. Super admin: ${superAdminEmail}`);
+    console.log(
+      `\n🚀 Seed concluído com sucesso!\nSuper Admin: ${superAdminEmail}`,
+    );
+  } catch (error) {
+    console.error('Erro ao executar o seeder:', error);
+    process.exitCode = 1;
   } finally {
+    await pool.end();
     await prisma.$disconnect();
   }
 }
 
-main().catch(async (error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+main();

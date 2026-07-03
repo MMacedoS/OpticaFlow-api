@@ -4,12 +4,15 @@ import { JwtService } from '@nestjs/jwt';
 import { UsuarioService } from 'src/usuario/usuario.service';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
+import { AcessoService } from 'src/acesso/acesso.service';
+import { Atribuicao } from 'src/acesso/interfaces/acesso.interface';
 
 interface JwtPayload {
   sub: string;
   email: string;
-  username?: string;
+  username?: string | null;
   pessoaId?: string | null;
+  type?: string;
 }
 
 @Injectable()
@@ -17,6 +20,7 @@ export class AuthService {
   constructor(
     private readonly usuarioService: UsuarioService,
     private readonly jwtService: JwtService,
+    private readonly acessoService: AcessoService,
   ) {}
 
   private isBcryptHash(value: string): boolean {
@@ -72,12 +76,28 @@ export class AuthService {
       pessoaId: usuario.pessoaId,
     };
 
-    const access_token = this.jwtService.sign(payload);
+    const access = this.generateToken(payload);
+
+    const lista = await this.acessoService.listarAtribuicoesDoUsuario(
+      usuario.id,
+    );
+
+    const atribuicoes: Atribuicao[] = lista.data || [];
 
     return {
       status: 200,
       message: 'Login realizado com sucesso.',
-      data: { access_token },
+      data: {
+        access_token: (await access).access_token,
+        refresh_token: (await access).refresh_token,
+        usuario: {
+          id: usuario.id,
+          email: usuario.email,
+          username: usuario.username,
+          pessoaId: usuario.pessoaId,
+        },
+        atribuicoes: atribuicoes || [],
+      },
     };
   }
 
@@ -91,9 +111,31 @@ export class AuthService {
     return true;
   }
 
+  private async generateToken(payload: JwtPayload): Promise<any> {
+    const payloadRefresh: Record<string, any> = {
+      sub: payload.sub,
+      type: 'refresh',
+    };
+
+    const [access_token, refresh_token] = await Promise.all([
+      this.jwtService.signAsync(payload as any, {
+        secret: process.env.JWT_SECRET,
+        expiresIn: process.env.JWT_EXPIRATION || ('15m' as any),
+      }),
+      this.jwtService.signAsync(payloadRefresh as any, {
+        secret: process.env.JWT_REFRESH_SECRET,
+        expiresIn: process.env.JWT_REFRESH_EXPIRATION || ('7d' as any),
+      }),
+    ]);
+
+    return { access_token, refresh_token };
+  }
+
   async validateTokenAndGetPayload(token: string): Promise<JwtPayload | null> {
     try {
-      const decoded = this.jwtService.verify<JwtPayload>(token);
+      const decoded = this.jwtService.verify<JwtPayload>(token, {
+        secret: process.env.JWT_SECRET,
+      });
       const usuario = await this.usuarioService.findById(decoded.sub);
 
       if (!usuario) {
@@ -104,6 +146,60 @@ export class AuthService {
     } catch (error) {
       console.error('Erro ao validar token JWT:', error);
       return null;
+    }
+  }
+
+  async refreshToken(refreshToken: string): Promise<ResponseJson> {
+    try {
+      const decoded = this.jwtService.verify<JwtPayload>(refreshToken, {
+        secret: process.env.JWT_REFRESH_SECRET,
+      });
+
+      if (decoded.type !== 'refresh') {
+        return { status: 401, message: 'Token de refresh inválido.' };
+      }
+
+      const usuario = await this.usuarioService.findById(decoded.sub);
+
+      if (!usuario) {
+        return { status: 401, message: 'Usuário não encontrado.' };
+      }
+
+      const payload = {
+        email: usuario.email,
+        sub: usuario.id,
+        username: usuario.username,
+        pessoaId: usuario.pessoaId,
+      };
+
+      const access = await this.generateToken(payload);
+
+      const lista = await this.acessoService.listarAtribuicoesDoUsuario(
+        usuario.id,
+      );
+
+      console.log('Atribuições do usuário:', lista.data);
+
+      const atribuicoes: Atribuicao[] = lista.data || [];
+
+      return {
+        status: 200,
+        message: 'Token de acesso renovado com sucesso.',
+        data: {
+          access_token: access.access_token,
+          refresh_token: access.refresh_token,
+          usuario: {
+            id: usuario.id,
+            email: usuario.email,
+            username: usuario.username,
+            pessoaId: usuario.pessoaId,
+          },
+          atribuicoes: atribuicoes || [],
+        },
+      };
+    } catch (error) {
+      console.error('Erro ao renovar token de acesso:', error);
+      return { status: 401, message: 'Token de refresh inválido ou expirado.' };
     }
   }
 }

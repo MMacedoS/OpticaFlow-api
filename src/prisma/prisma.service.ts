@@ -10,8 +10,6 @@ export class PrismaService
 {
   private static instance: Pool;
   constructor() {
-    console.log('PrismaService constructor called');
-    console.log('DATABASE_URL:', process.env.DATABASE_URL);
     const pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       max: 20,

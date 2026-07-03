@@ -117,7 +117,12 @@ export class EmpresaService {
     }
   }
 
-  async findAll(page: number = 1, limit: number = 10, search: string = '') {
+  async findAll(
+    page: number = 1,
+    limit: number = 10,
+    search: string = '',
+    status: string = 'ativo',
+  ): Promise<ResponseJson> {
     const pageNumber = Math.max(1, page);
     const limitNumber = Math.max(1, limit);
 
@@ -131,10 +136,11 @@ export class EmpresaService {
             { email: { contains: search, mode: 'insensitive' as const } },
             { cnpj: { contains: search, mode: 'insensitive' as const } },
           ],
+          and: status ? { status: { equals: status } } : {},
         }
       : {};
 
-    return await this.prisma.empresa.findMany({
+    const empresa = await this.prisma.empresa.findMany({
       skip,
       take: limitNumber,
       where: searchFilter,
@@ -148,6 +154,20 @@ export class EmpresaService {
         createdAt: true,
       },
     });
+
+    return {
+      status: 200,
+      message: 'Empresas listadas com sucesso.',
+      data: {
+        companies: empresa,
+        pagination: {
+          page: pageNumber,
+          limit: limitNumber,
+          total: empresa.length,
+          pages: Math.ceil(empresa.length / limitNumber),
+        },
+      },
+    };
   }
 
   async deleteById(id: string): Promise<ResponseJson> {
