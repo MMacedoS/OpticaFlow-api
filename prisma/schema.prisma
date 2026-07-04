@@ -137,7 +137,7 @@ model Contato_empresa {
   empresaId        String          
   empresa          Empresa         @relation(fields: [empresaId], references: [id], onDelete:Cascade)
   tipo             TipoContatos    @default(whatsapp) 
-  Contato          String
+  contato          String          @default("")
   principal        Boolean?        @default(true)   
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt             

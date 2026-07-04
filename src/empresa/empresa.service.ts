@@ -67,7 +67,7 @@ export class EmpresaService {
             contatos: {
               create: dto.contatos.map((contato) => ({
                 tipo: contato.tipo,
-                Contato: contato.contato,
+                contato: contato.contato,
                 principal: contato.principal ?? true,
               })),
             },
@@ -230,7 +230,7 @@ export class EmpresaService {
           deleteMany: {},
           create: dto.contatos?.map((contato) => ({
             tipo: contato.tipo,
-            Contato: contato.contato,
+            contato: contato.contato,
             principal: contato.principal ?? true,
           })),
         },

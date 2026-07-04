@@ -70,6 +70,9 @@ export class CreateEmpresaDto {
 }
 
 export class EnderecoEmpresaDto {
+  @IsOptional()
+  id?: string;
+
   @IsString({
     message: 'O CEP deve ser uma string válida.',
   })
@@ -110,6 +113,9 @@ export class EnderecoEmpresaDto {
 }
 
 export class ContatoEmpresaDto {
+  @IsOptional()
+  id?: string;
+
   @IsEnum(TipoContatos, {
     message: 'O tipo de contato informado não é válido.',
   })
