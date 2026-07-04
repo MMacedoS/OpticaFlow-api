@@ -4,14 +4,17 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { UsuarioService } from './usuario.service';
-import { UsuarioDto } from './dto/usuario.dto';
+import { CreateUsuarioDto } from './dto/createUsuario.dto';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
+import { UpdateUsuarioDto } from './dto/updateUsuario.dto';
 
 @Controller('usuarios')
 // @UseGuards(AuthGuard, AcessoGuard)
@@ -34,8 +37,28 @@ export class UsuarioController {
   }
 
   @Post()
-  async createUsuario(@Body() data: UsuarioDto) {
+  async createUsuario(@Body() data: CreateUsuarioDto) {
     return await this.usuarioService.create(data);
+  }
+
+  @Get(':id')
+  async getUsuarioById(@Param('id') id: string) {
+    return await this.usuarioService.findById(id);
+  }
+
+  @Get('email/:email')
+  async getUsuarioByEmail(@Param('email') email: string) {
+    return await this.usuarioService.findByEmail(email);
+  }
+
+  @Patch(':id/status')
+  async updateStatus(@Param('id') id: string, @Body('status') status: string) {
+    return await this.usuarioService.updateStatus(id, status);
+  }
+
+  @Put(':id')
+  async updateUsuario(@Param('id') id: string, @Body() data: UpdateUsuarioDto) {
+    return await this.usuarioService.update(id, data);
   }
 
   @Delete(':id')

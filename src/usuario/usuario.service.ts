@@ -2,15 +2,16 @@ import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { UsuarioDto } from './dto/usuario.dto';
+import { CreateUsuarioDto } from './dto/createUsuario.dto';
 import { Usuario } from './usuario.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
+import { UpdateUsuarioDto } from './dto/updateUsuario.dto';
 
 @Injectable()
 export class UsuarioService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: UsuarioDto): Promise<ResponseJson> {
+  async create(dto: CreateUsuarioDto): Promise<ResponseJson> {
     const usuarioExistente = await this.prisma.usuario.findUnique({
       where: { email: dto.email },
     });
@@ -196,6 +197,44 @@ export class UsuarioService {
     return {
       status: 200,
       message: 'Status do usuário atualizado com sucesso.',
+    };
+  }
+
+  async update(id: string, dto: UpdateUsuarioDto): Promise<ResponseJson> {
+    const user = await this.findById(id);
+    if (!user) {
+      return { status: 422, message: 'Usuário não encontrado.' };
+    }
+
+    const updatedUser = await this.prisma.$transaction(async (tx) => {
+      const updatingUser = await this.prisma.usuario.update({
+        where: { id },
+        data: {
+          email: dto.email,
+          username: dto.username,
+          pessoaId: dto.pessoaId,
+        },
+      });
+
+      if (dto.senha) {
+        const passwordHash = await bcrypt.hash(dto.senha, 10);
+        await tx.usuario.update({
+          where: { id },
+          data: { senha: passwordHash },
+        });
+      }
+      return updatingUser;
+    });
+
+    return {
+      status: 200,
+      message: 'Usuário atualizado com sucesso.',
+      data: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        username: updatedUser.username,
+        pessoaId: updatedUser.pessoaId,
+      },
     };
   }
 }

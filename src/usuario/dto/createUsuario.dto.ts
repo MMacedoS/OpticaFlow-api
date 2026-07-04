@@ -1,3 +1,4 @@
+import { Status } from '@prisma/client';
 import {
   IsString,
   IsNotEmpty,
@@ -7,7 +8,7 @@ import {
   IsEmail,
 } from 'class-validator';
 
-export class UsuarioDto {
+export class CreateUsuarioDto {
   @IsString({ message: 'O email deve ser um texto válido.' })
   @IsNotEmpty({ message: 'O email é obrigatório.' })
   @IsEmail({}, { message: 'O email deve ser um endereço de email válido.' })
@@ -28,6 +29,9 @@ export class UsuarioDto {
     message: 'O nome de usuário deve ter no mínimo 3 caracteres.',
   })
   username!: string;
+
+  @IsOptional()
+  status?: Status;
 
   @IsOptional()
   @IsString({ message: 'O id da pessoa deve ser um texto válido.' })
