@@ -120,7 +120,7 @@ export class UsuarioService {
     page: number = 1,
     limit: number = 10,
     search: string = '',
-  ): Promise<Usuario[]> {
+  ): Promise<ResponseJson> {
     const pageNumber = Math.max(1, page);
     const limitNumber = Math.max(1, limit);
 
@@ -135,18 +135,38 @@ export class UsuarioService {
         }
       : {};
 
-    return await this.prisma.usuario.findMany({
-      skip: skip,
-      take: limitNumber,
-      where: searchFilter,
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        empresaId: true,
-        createdAt: true,
+    const [usuarios, totalUsuarios] = await Promise.all([
+      this.prisma.usuario.findMany({
+        skip: skip,
+        take: limitNumber,
+        where: searchFilter,
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          empresaId: true,
+          empresa: true,
+          status: true,
+          pessoa: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.usuario.count({ where: searchFilter }),
+    ]);
+
+    return {
+      status: 200,
+      message: 'Usuários listados com sucesso.',
+      data: {
+        users: usuarios,
+        pagination: {
+          page: pageNumber,
+          limit: limitNumber,
+          total: totalUsuarios,
+          totalPages: Math.ceil(totalUsuarios / limitNumber),
+        },
       },
-    });
+    };
   }
 
   async deleteById(id: string): Promise<ResponseJson> {
@@ -160,5 +180,22 @@ export class UsuarioService {
     });
 
     return { status: 200, message: 'Usuário deletado com sucesso.' };
+  }
+
+  async updateStatus(id: string, status: string): Promise<ResponseJson> {
+    const user = await this.findById(id);
+    if (!user) {
+      return { status: 422, message: 'Usuário não encontrado.' };
+    }
+
+    await this.prisma.usuario.update({
+      where: { id },
+      data: { status: status as Prisma.EnumStatusFieldUpdateOperationsInput },
+    });
+
+    return {
+      status: 200,
+      message: 'Status do usuário atualizado com sucesso.',
+    };
   }
 }

@@ -13,7 +13,7 @@ import { UsuarioDto } from './dto/usuario.dto';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 
-@Controller('usuario')
+@Controller('usuarios')
 // @UseGuards(AuthGuard, AcessoGuard)
 export class UsuarioController {
   constructor(private readonly usuarioService: UsuarioService) {}
@@ -29,10 +29,6 @@ export class UsuarioController {
       limit ? parseInt(limit, 10) : 10,
       search ? search : '',
     );
-
-    if (!usuarios || usuarios.length === 0) {
-      return { error: 'Nenhum usuário encontrado' };
-    }
 
     return usuarios;
   }

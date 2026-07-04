@@ -78,13 +78,28 @@ export class EmpresaService {
           },
         });
 
-        await tx.usuario.create({
+        const user = await tx.usuario.create({
           data: {
             empresaId: novaEmpresa.id,
             email: dto.email,
             senha: passwordHash,
             username: dto.nome,
           },
+        });
+
+        const todosAcessos = await tx.acesso.findMany({
+          where: { nome: { notIn: ['empresa', 'usuario'] } },
+          select: {
+            id: true,
+          },
+        });
+
+        await tx.atribuicao.createMany({
+          data: todosAcessos.map((acesso) => ({
+            usuarioId: user.id,
+            acessoId: acesso.id,
+          })),
+          skipDuplicates: true,
         });
 
         return novaEmpresa;
@@ -129,48 +144,51 @@ export class EmpresaService {
 
     const skip = (pageNumber - 1) * limitNumber;
 
-    const searchFilter = search
-      ? {
-          OR: [
-            { nome: { contains: search, mode: 'insensitive' as const } },
-            { razao: { contains: search, mode: 'insensitive' as const } },
-            { email: { contains: search, mode: 'insensitive' as const } },
-            { cnpj: { contains: search, mode: 'insensitive' as const } },
-          ],
-          and: status ? { status: { equals: status } } : {},
-        }
-      : {};
+    const searchFilter: any = {
+      status: status ? { equals: status } : undefined,
+    };
 
-    const empresa = await this.prisma.empresa.findMany({
-      skip,
-      take: limitNumber,
-      where: searchFilter,
-      select: {
-        id: true,
-        nome: true,
-        razao: true,
-        registro_estadual: true,
-        registro_municipal: true,
-        website: true,
-        cnpj: true,
-        email: true,
-        enderecos: true,
-        contatos: true,
-        status: true,
-        createdAt: true,
-      },
-    });
+    if (search) {
+      searchFilter.OR = [
+        { nome: { contains: search, mode: 'insensitive' as const } },
+        { razao: { contains: search, mode: 'insensitive' as const } },
+        { email: { contains: search, mode: 'insensitive' as const } },
+        { cnpj: { contains: search, mode: 'insensitive' as const } },
+      ];
+    }
+    const [empresas, totalEmpresas] = await Promise.all([
+      this.prisma.empresa.findMany({
+        skip,
+        take: limitNumber,
+        where: searchFilter,
+        select: {
+          id: true,
+          nome: true,
+          razao: true,
+          registro_estadual: true,
+          registro_municipal: true,
+          website: true,
+          cnpj: true,
+          email: true,
+          enderecos: true,
+          contatos: true,
+          status: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.empresa.count({ where: searchFilter }),
+    ]);
 
     return {
       status: 200,
       message: 'Empresas listadas com sucesso.',
       data: {
-        companies: empresa,
+        companies: empresas,
         pagination: {
           page: pageNumber,
           limit: limitNumber,
-          total: empresa.length,
-          pages: Math.ceil(empresa.length / limitNumber),
+          total: totalEmpresas,
+          pages: Math.ceil(totalEmpresas / limitNumber),
         },
       },
     };
@@ -183,9 +201,18 @@ export class EmpresaService {
       return { status: 422, message: 'Empresa não encontrada.' };
     }
 
-    const updatedEmpresa = await this.prisma.empresa.update({
-      where: { id },
-      data: { status: status as Prisma.EnumStatusFieldUpdateOperationsInput },
+    const updatedEmpresa = await this.prisma.$transaction(async (tx) => {
+      const updatingEmpresa = await this.prisma.empresa.update({
+        where: { id },
+        data: { status: status as Prisma.EnumStatusFieldUpdateOperationsInput },
+      });
+
+      await tx.usuario.updateMany({
+        where: { empresaId: id },
+        data: { status: status as Prisma.EnumStatusFieldUpdateOperationsInput },
+      });
+
+      return updatingEmpresa;
     });
 
     return {
