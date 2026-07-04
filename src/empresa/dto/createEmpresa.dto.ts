@@ -13,7 +13,7 @@ import {
 import { Status, TipoContatos } from '@prisma/client';
 import { IsCnpj } from '../../common/decorators/is-cnpj.decorator';
 
-export class EmpresaDto {
+export class CreateEmpresaDto {
   @IsString({ message: 'O nome da empresa deve ser uma string válida.' })
   @MinLength(3, {
     message: 'O nome da empresa deve conter pelo menos 3 caracteres.',
@@ -121,7 +121,8 @@ export class ContatoEmpresaDto {
   @IsString({
     message: 'O Contato deve ser uma string válida',
   })
-  Contato!: string;
+  @IsNotEmpty({ message: 'O contato não pode ser vazio.' })
+  contato!: string;
 
   @IsOptional()
   @IsBoolean({ message: 'O campo principal deve ser booleano.' })

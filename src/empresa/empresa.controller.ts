@@ -4,14 +4,17 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { EmpresaService } from './empresa.service';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
-import { EmpresaDto } from './dto/empresa.dto';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
+import { CreateEmpresaDto } from './dto/createEmpresa.dto';
+import { UpdateEmpresaDto } from './dto/updateEmpresa.dto';
 
 @Controller('empresas')
 @UseGuards(AuthGuard, AcessoGuard)
@@ -36,8 +39,18 @@ export class EmpresaController {
   }
 
   @Post()
-  async createEmpresa(@Body() data: EmpresaDto) {
+  async createEmpresa(@Body() data: CreateEmpresaDto) {
     return await this.empresaService.create(data);
+  }
+
+  @Put(':id')
+  async updateEmpresa(@Param('id') id: string, @Body() data: UpdateEmpresaDto) {
+    return await this.empresaService.update(id, data);
+  }
+
+  @Patch(':id/status')
+  async updateStatus(@Param('id') id: string, @Body('status') status: string) {
+    return await this.empresaService.updateStatus(id, status);
   }
 
   @Delete(':id')

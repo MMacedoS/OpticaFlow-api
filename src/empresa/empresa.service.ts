@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { Prisma, TipoContatos } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ResponseJson } from 'src/interface/response/response.interface';
-import { EmpresaDto } from './dto/empresa.dto';
+import { CreateEmpresaDto } from './dto/createEmpresa.dto';
+import { UpdateEmpresaDto } from './dto/updateEmpresa.dto';
 
 @Injectable()
 export class EmpresaService {
@@ -13,7 +14,7 @@ export class EmpresaService {
     return cnpj.replace(/\D/g, '');
   }
 
-  async create(dto: EmpresaDto): Promise<ResponseJson> {
+  async create(dto: CreateEmpresaDto): Promise<ResponseJson> {
     const empresaExistente = await this.prisma.empresa.findFirst({
       where: {
         OR: [{ cnpj: dto.cnpj }, { email: dto.email }],
@@ -65,8 +66,8 @@ export class EmpresaService {
             },
             contatos: {
               create: dto.contatos.map((contato) => ({
-                tipo: contato.tipo as TipoContatos,
-                Contato: contato.Contato,
+                tipo: contato.tipo,
+                Contato: contato.contato,
                 principal: contato.principal ?? true,
               })),
             },
@@ -148,8 +149,13 @@ export class EmpresaService {
         id: true,
         nome: true,
         razao: true,
+        registro_estadual: true,
+        registro_municipal: true,
+        website: true,
         cnpj: true,
         email: true,
+        enderecos: true,
+        contatos: true,
         status: true,
         createdAt: true,
       },
@@ -167,6 +173,78 @@ export class EmpresaService {
           pages: Math.ceil(empresa.length / limitNumber),
         },
       },
+    };
+  }
+
+  async updateStatus(id: string, status: string): Promise<ResponseJson> {
+    const empresa = await this.prisma.empresa.findUnique({ where: { id } });
+
+    if (!empresa) {
+      return { status: 422, message: 'Empresa não encontrada.' };
+    }
+
+    const updatedEmpresa = await this.prisma.empresa.update({
+      where: { id },
+      data: { status: status as Prisma.EnumStatusFieldUpdateOperationsInput },
+    });
+
+    return {
+      status: 200,
+      message: 'Status da empresa atualizado com sucesso.',
+      data: updatedEmpresa,
+    };
+  }
+
+  async update(id: string, dto: UpdateEmpresaDto): Promise<ResponseJson> {
+    const empresa = await this.prisma.empresa.findUnique({ where: { id } });
+
+    if (!empresa) {
+      return { status: 422, message: 'Empresa não encontrada.' };
+    }
+
+    const updatedEmpresa = await this.prisma.empresa.update({
+      where: { id },
+      data: {
+        nome: dto.nome,
+        razao: dto.razao,
+        cnpj: dto.cnpj,
+        registro_estadual: dto.registro_estadual,
+        registro_municipal: dto.registro_municipal,
+        email: dto.email,
+        website: dto.website,
+        status: dto.status,
+        enderecos: {
+          deleteMany: {},
+          create: dto.enderecos?.map((endereco) => ({
+            cep: endereco.cep,
+            numero: endereco.numero,
+            logradouro: endereco.logradouro,
+            bairro: endereco.bairro,
+            cidade: endereco.cidade,
+            uf: endereco.uf,
+            pais: endereco.pais,
+            principal: endereco.principal ?? true,
+          })),
+        },
+        contatos: {
+          deleteMany: {},
+          create: dto.contatos?.map((contato) => ({
+            tipo: contato.tipo,
+            Contato: contato.contato,
+            principal: contato.principal ?? true,
+          })),
+        },
+      },
+      include: {
+        enderecos: true,
+        contatos: true,
+      },
+    });
+
+    return {
+      status: 200,
+      message: 'Empresa atualizada com sucesso.',
+      data: updatedEmpresa,
     };
   }
 
