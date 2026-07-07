@@ -158,12 +158,14 @@ export class EstoqueItemService {
     return {
       status: 200,
       message: 'Itens de estoque listados com sucesso.',
-      data: itens,
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        itens: itens,
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }

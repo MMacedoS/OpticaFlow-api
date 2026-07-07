@@ -122,12 +122,14 @@ export class ProdutoService {
     return {
       status: 200,
       message: 'Produtos listados com sucesso.',
-      data: produtos,
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        products: produtos,
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }

@@ -119,12 +119,16 @@ export class LaboratorioService {
     return {
       status: 200,
       message: 'Laboratórios listados com sucesso.',
-      data: laboratorios.map((laboratorio) => this.mapResumo(laboratorio)),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        laboratories: laboratorios.map((laboratorio) =>
+          this.mapResumo(laboratorio),
+        ),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }

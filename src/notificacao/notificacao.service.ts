@@ -114,18 +114,20 @@ export class NotificacaoService {
     return {
       status: 200,
       message: 'Notificacoes listadas com sucesso.',
-      data: notificacoes.map((notificacao) => ({
-        ...this.mapResumo(notificacao),
-        filial: notificacao.filial,
-        pessoa: notificacao.pessoa,
-        usuarioDestino: notificacao.usuario_destino,
-        usuarioRemetente: notificacao.usuario_remetente,
-      })),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        itens: notificacoes.map((notificacao) => ({
+          ...this.mapResumo(notificacao),
+          filial: notificacao.filial,
+          pessoa: notificacao.pessoa,
+          usuarioDestino: notificacao.usuario_destino,
+          usuarioRemetente: notificacao.usuario_remetente,
+        })),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }

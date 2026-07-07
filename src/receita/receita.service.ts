@@ -1224,9 +1224,9 @@ export class ReceitaService {
     return {
       status: 200,
       message: 'Receitas de óculos listadas com sucesso.',
-      data: registros.map((registro) => this.mapOculosLista(registro)),
-      meta: {
-        total,
+      data: {
+        receitas: registros.map((registro) => this.mapOculosLista(registro)),
+        pagination: total,
         page: pageNumber,
         limit: limitNumber,
         totalPages: Math.ceil(total / limitNumber),
@@ -1314,12 +1314,16 @@ export class ReceitaService {
     return {
       status: 200,
       message: 'Receitas de lente de contato listadas com sucesso.',
-      data: registros.map((registro) => this.mapLenteContatoLista(registro)),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        receitas: registros.map((registro) =>
+          this.mapLenteContatoLista(registro),
+        ),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }
@@ -1404,12 +1408,16 @@ export class ReceitaService {
     return {
       status: 200,
       message: 'Receitas de medicamento listadas com sucesso.',
-      data: registros.map((registro) => this.mapMedicamentoLista(registro)),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        receitas: registros.map((registro) =>
+          this.mapMedicamentoLista(registro),
+        ),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }

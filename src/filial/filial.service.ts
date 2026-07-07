@@ -1,25 +1,31 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, TipoContatos } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+import { Prisma, Status } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { CreateFilialDto } from './dto/filial.dto';
+import { getSenhaBase } from 'src/utils/validator';
+import { UpdateFilialDto } from './dto/update.dto';
 
 @Injectable()
 export class FilialService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateFilialDto): Promise<ResponseJson> {
+    if (!dto.empresaId) {
+      return { status: 400, message: 'O id da empresa é obrigatório.' };
+    }
+
     const empresa = await this.prisma.empresa.findUnique({
       where: { id: dto.empresaId },
     });
 
     if (!empresa) {
-      throw new NotFoundException('Empresa não encontrada.');
+      return { status: 404, message: 'Empresa não encontrada.' };
     }
 
     if (dto.cnpj) {
@@ -28,9 +34,12 @@ export class FilialService {
       });
 
       if (filialExistente) {
-        throw new ConflictException('Já existe uma filial com este CNPJ.');
+        return { status: 400, message: 'Filial já existe com este CNPJ.' };
       }
     }
+
+    const senhaBase = getSenhaBase(dto.pessoa.cpf);
+    const passwordHash = await bcrypt.hash(senhaBase, 10);
 
     try {
       const filial = await this.prisma.$transaction(async (tx) => {
@@ -41,8 +50,36 @@ export class FilialService {
             empresaId: dto.empresaId,
             enderecos: {
               create: dto.enderecos.map((endereco) => ({
+                ...endereco,
+                principal: endereco.principal ?? true,
+              })),
+            },
+            contatos: {
+              create: dto.contatos.map((contato) => ({
+                ...contato,
+                principal: contato.principal ?? true,
+              })),
+            },
+            ...(dto.config && {
+              config: { create: dto.config },
+            }),
+          },
+          include: { enderecos: true, contatos: true, config: true },
+        });
+
+        const pessoa = await tx.pessoa.create({
+          data: {
+            nome: dto.pessoa.nome,
+            cpf: dto.pessoa.cpf,
+            email: dto.pessoa.email,
+            data_nascimento: dto.pessoa.data_nascimento,
+            genero: dto.pessoa.genero,
+            status: dto.pessoa.status,
+            filialId: novaFilial.id,
+            enderecos: {
+              create: dto.enderecos.map((endereco) => ({
                 cep: endereco.cep,
-                numero: endereco.numero,
+                numero: endereco.numero ?? 'S/N',
                 logradouro: endereco.logradouro,
                 bairro: endereco.bairro,
                 cidade: endereco.cidade,
@@ -51,27 +88,42 @@ export class FilialService {
                 principal: endereco.principal ?? true,
               })),
             },
+
             contatos: {
               create: dto.contatos.map((contato) => ({
                 tipo: contato.tipo,
-                Contato: contato.Contato,
+                contato: contato.contato,
                 principal: contato.principal ?? true,
               })),
             },
-            ...(dto.config && {
-              config: {
-                create: {
-                  timezone: dto.config.timezone,
-                  moeda: dto.config.moeda,
-                },
-              },
-            }),
+
+            funcionario: {
+              create: { cargo: 'Gerente' },
+            },
           },
-          include: {
-            enderecos: true,
-            contatos: true,
-            config: true,
+        });
+
+        const user = await tx.usuario.create({
+          data: {
+            empresaId: dto.empresaId,
+            email: dto.pessoa.email,
+            senha: passwordHash,
+            username: dto.pessoa.nome,
+            pessoaId: pessoa.id,
           },
+        });
+
+        const todosAcessos = await tx.acesso.findMany({
+          where: { nome: { notIn: ['empresa', 'usuario', 'filial'] } },
+          select: { id: true },
+        });
+
+        await tx.atribuicao.createMany({
+          data: todosAcessos.map((acesso) => ({
+            usuarioId: user.id,
+            acessoId: acesso.id,
+          })),
+          skipDuplicates: true,
         });
 
         return novaFilial;
@@ -80,42 +132,52 @@ export class FilialService {
       return {
         status: 201,
         message: 'Filial criada com sucesso.',
-        data: {
-          id: filial.id,
-          nome: filial.nome,
-          cnpj: filial.cnpj,
-          empresaId: filial.empresaId,
-          enderecos: filial.enderecos,
-          contatos: filial.contatos,
-          config: filial.config,
-          createdAt: filial.createdAt,
-          updatedAt: filial.updatedAt,
-        },
+        data: { branches: filial },
       };
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException('Já existe uma filial com estes dados.');
+        return { status: 400, message: 'Filial já existe com este CNPJ.' };
       }
-
       throw error;
     }
   }
 
   async findAllByEmpresa(
-    empresaId: string,
+    userId: string,
     page: number = 1,
     limit: number = 10,
     search: string = '',
+    status: string = 'ativo',
   ): Promise<ResponseJson> {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: userId },
+    });
+
+    if (!usuario) {
+      return { status: 401, message: 'Usuário não encontrado.' };
+    }
+
+    const empresaId = usuario.empresaId;
+
+    if (!empresaId) {
+      return {
+        status: 401,
+        message: 'Usuário não está associado a uma empresa.',
+      };
+    }
+
     const empresa = await this.prisma.empresa.findUnique({
       where: { id: empresaId },
     });
 
     if (!empresa) {
-      throw new NotFoundException('Empresa não encontrada.');
+      return {
+        status: 401,
+        message: 'Empresa associada ao usuário não encontrada.',
+      };
     }
 
     const pageNumber = Math.max(1, page);
@@ -141,25 +203,48 @@ export class FilialService {
           nome: true,
           cnpj: true,
           empresaId: true,
-          createdAt: true,
-          updatedAt: true,
+          empresa: true,
           enderecos: true,
           contatos: true,
           config: true,
+          pessoas: {
+            select: {
+              id: true,
+              nome: true,
+              cpf: true,
+              email: true,
+              data_nascimento: true,
+              genero: true,
+              status: true,
+            },
+            where: { funcionario: { cargo: 'Gerente' } },
+            take: 1,
+          },
+          status: true,
+          createdAt: true,
+          updatedAt: true,
         },
       }),
       this.prisma.filial.count({ where: { empresaId, ...searchFilter } }),
     ]);
 
+    const filiaisComGerente = filiais.map((f) => ({
+      ...f,
+      pessoa: f.pessoas[0] || null,
+      pessoas: undefined,
+    }));
+
     return {
       status: 200,
       message: 'Filiais listadas com sucesso.',
-      data: filiais,
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        branches: filiaisComGerente,
+        pagination: {
+          page: pageNumber,
+          limit: limitNumber,
+          total: total,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }
@@ -185,204 +270,138 @@ export class FilialService {
     };
   }
 
-  async update(
-    id: string,
-    dto: Partial<CreateFilialDto>,
-  ): Promise<ResponseJson> {
-    const filial = await this.prisma.filial.findUnique({ where: { id } });
-
-    if (!filial) {
+  async update(id: string, dto: UpdateFilialDto): Promise<ResponseJson> {
+    const filialExistente = await this.prisma.filial.findUnique({
+      where: { id },
+    });
+    if (!filialExistente) {
       throw new NotFoundException('Filial não encontrada.');
     }
 
-    if (dto.cnpj && dto.cnpj !== filial.cnpj) {
-      const filialComCnpj = await this.prisma.filial.findFirst({
-        where: { cnpj: dto.cnpj, id: { not: id } },
+    const filialAtualizada = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.filial.update({
+        where: { id },
+        data: {
+          nome: dto.nome,
+          cnpj: dto.cnpj,
+        },
       });
 
-      if (filialComCnpj) {
-        throw new ConflictException('Já existe outra filial com este CNPJ.');
-      }
-    }
+      await tx.endereco_filial.deleteMany({ where: { filialId: id } });
+      await tx.endereco_filial.createMany({
+        data: dto.enderecos.map((end) => ({ ...end, filialId: id })),
+      });
 
-    const filialAtualizada = await this.prisma.filial.update({
+      await tx.contato_filial.deleteMany({ where: { filialId: id } });
+      await tx.contato_filial.createMany({
+        data: dto.contatos.map((cont) => ({ ...cont, filialId: id })),
+      });
+
+      return updated;
+    });
+
+    const filialComDados = await this.prisma.filial.findUnique({
       where: { id },
-      data: {
-        nome: dto.nome,
-        cnpj: dto.cnpj,
-      },
       include: {
-        enderecos: true,
-        contatos: true,
-        config: true,
+        pessoas: {
+          select: { id: true, nome: true, cpf: true, email: true },
+          where: { funcionario: { cargo: 'Gerente' } },
+          take: 1,
+        },
       },
     });
+
+    const responseData = {
+      ...filialComDados,
+      pessoa: filialComDados?.pessoas[0] || null,
+      pessoas: undefined,
+    };
 
     return {
       status: 200,
       message: 'Filial atualizada com sucesso.',
-      data: filialAtualizada,
+      data: { branch: responseData },
+    };
+  }
+
+  async updateStatus(id: string, status: Status): Promise<ResponseJson> {
+    const filial = await this.prisma.filial.findUnique({
+      where: { id },
+    });
+
+    if (!filial) {
+      return { status: 404, message: 'Filial não encontrada.' };
+    }
+
+    const pessoasDaFilial = await this.prisma.pessoa.findMany({
+      where: { filialId: id },
+      select: { id: true },
+    });
+    const pessoaIds = pessoasDaFilial.map((p) => p.id);
+
+    const updatedFilial = await this.prisma.$transaction(async (tx) => {
+      const filialUpd = await tx.filial.update({
+        where: { id },
+        data: { status },
+      });
+
+      await tx.pessoa.updateMany({
+        where: { filialId: id },
+        data: { status },
+      });
+
+      await tx.usuario.updateMany({
+        where: { pessoaId: { in: pessoaIds } },
+        data: { status },
+      });
+
+      return filialUpd;
+    });
+
+    return {
+      status: 200,
+      message: 'Status atualizado com sucesso.',
+      data: updatedFilial,
     };
   }
 
   async deleteById(id: string): Promise<ResponseJson> {
-    const filial = await this.prisma.filial.findUnique({ where: { id } });
+    const filial = await this.prisma.filial.findUnique({
+      where: { id },
+      include: { pessoas: { include: { usuario: true } } }, // Incluímos o usuário para facilitar
+    });
 
     if (!filial) {
       throw new NotFoundException('Filial não encontrada.');
     }
 
-    await this.prisma.filial.delete({ where: { id } });
+    const pessoaIds = filial.pessoas.map((p) => p.id);
+    const usuarioIds = filial.pessoas
+      .map((p) => p.usuario?.id)
+      .filter((id): id is string => !!id);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.endereco_filial.deleteMany({ where: { filialId: id } });
+      await tx.contato_filial.deleteMany({ where: { filialId: id } });
+      await tx.config_filial.deleteMany({ where: { filialId: id } });
+
+      await tx.atribuicao.deleteMany({
+        where: { usuarioId: { in: usuarioIds } },
+      });
+      await tx.usuario.deleteMany({ where: { id: { in: usuarioIds } } });
+
+      await tx.endereco.deleteMany({ where: { pessoaId: { in: pessoaIds } } });
+      await tx.contato.deleteMany({ where: { pessoaId: { in: pessoaIds } } });
+      await tx.funcionario.deleteMany({
+        where: { pessoaId: { in: pessoaIds } },
+      });
+
+      await tx.pessoa.deleteMany({ where: { filialId: id } });
+      await tx.filial.delete({ where: { id } });
+    });
 
     return { status: 200, message: 'Filial deletada com sucesso.' };
   }
-
-  // ─── Endereço ─────────────────────────────────────────────────────────────
-
-  async addEndereco(
-    filialId: string,
-    dto: import('./dto/filial.dto').EnderecoFilialDto,
-  ): Promise<ResponseJson> {
-    await this.assertFilialExists(filialId);
-
-    const endereco = await this.prisma.endereco_filial.create({
-      data: {
-        filialId,
-        cep: dto.cep,
-        numero: dto.numero,
-        logradouro: dto.logradouro,
-        bairro: dto.bairro,
-        cidade: dto.cidade,
-        uf: dto.uf,
-        pais: dto.pais,
-        principal: dto.principal ?? false,
-      },
-    });
-
-    return {
-      status: 201,
-      message: 'Endereço adicionado com sucesso.',
-      data: endereco,
-    };
-  }
-
-  async updateEndereco(
-    filialId: string,
-    enderecoId: string,
-    dto: Partial<import('./dto/filial.dto').EnderecoFilialDto>,
-  ): Promise<ResponseJson> {
-    await this.assertFilialExists(filialId);
-
-    const endereco = await this.prisma.endereco_filial.findFirst({
-      where: { id: enderecoId, filialId },
-    });
-
-    if (!endereco) {
-      throw new NotFoundException('Endereço não encontrado para esta filial.');
-    }
-
-    const atualizado = await this.prisma.endereco_filial.update({
-      where: { id: enderecoId },
-      data: dto,
-    });
-
-    return {
-      status: 200,
-      message: 'Endereço atualizado com sucesso.',
-      data: atualizado,
-    };
-  }
-
-  async deleteEndereco(
-    filialId: string,
-    enderecoId: string,
-  ): Promise<ResponseJson> {
-    await this.assertFilialExists(filialId);
-
-    const endereco = await this.prisma.endereco_filial.findFirst({
-      where: { id: enderecoId, filialId },
-    });
-
-    if (!endereco) {
-      throw new NotFoundException('Endereço não encontrado para esta filial.');
-    }
-
-    await this.prisma.endereco_filial.delete({ where: { id: enderecoId } });
-
-    return { status: 200, message: 'Endereço removido com sucesso.' };
-  }
-
-  // ─── Contato ──────────────────────────────────────────────────────────────
-
-  async addContato(
-    filialId: string,
-    dto: import('./dto/filial.dto').ContatoFilialDto,
-  ): Promise<ResponseJson> {
-    await this.assertFilialExists(filialId);
-
-    const contato = await this.prisma.contato_filial.create({
-      data: {
-        filialId,
-        tipo: dto.tipo,
-        Contato: dto.Contato,
-        principal: dto.principal ?? false,
-      },
-    });
-
-    return {
-      status: 201,
-      message: 'Contato adicionado com sucesso.',
-      data: contato,
-    };
-  }
-
-  async updateContato(
-    filialId: string,
-    contatoId: string,
-    dto: Partial<import('./dto/filial.dto').ContatoFilialDto>,
-  ): Promise<ResponseJson> {
-    await this.assertFilialExists(filialId);
-
-    const contato = await this.prisma.contato_filial.findFirst({
-      where: { id: contatoId, filialId },
-    });
-
-    if (!contato) {
-      throw new NotFoundException('Contato não encontrado para esta filial.');
-    }
-
-    const atualizado = await this.prisma.contato_filial.update({
-      where: { id: contatoId },
-      data: dto,
-    });
-
-    return {
-      status: 200,
-      message: 'Contato atualizado com sucesso.',
-      data: atualizado,
-    };
-  }
-
-  async deleteContato(
-    filialId: string,
-    contatoId: string,
-  ): Promise<ResponseJson> {
-    await this.assertFilialExists(filialId);
-
-    const contato = await this.prisma.contato_filial.findFirst({
-      where: { id: contatoId, filialId },
-    });
-
-    if (!contato) {
-      throw new NotFoundException('Contato não encontrado para esta filial.');
-    }
-
-    await this.prisma.contato_filial.delete({ where: { id: contatoId } });
-
-    return { status: 200, message: 'Contato removido com sucesso.' };
-  }
-
-  // ─── Config ───────────────────────────────────────────────────────────────
 
   async upsertConfig(
     filialId: string,

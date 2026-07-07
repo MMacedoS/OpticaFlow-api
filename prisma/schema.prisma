@@ -152,6 +152,7 @@ model Filial {
   empresaId  String
   empresa    Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   pessoas    Pessoa[]
+  status     Status   @default(ativo)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -197,7 +198,7 @@ model Contato_filial {
   filialId         String          
   filial           Filial          @relation(fields: [filialId], references: [id], onDelete:Cascade)
   tipo             TipoContatos    @default(whatsapp) 
-  Contato          String
+  contato          String
   principal        Boolean         @default(true)   
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt             
@@ -219,7 +220,9 @@ model Pessoa {
   nome             String
   cpf              String?          @unique
   email            String?
-  generator        String?
+  data_nascimento  DateTime?        @default(now())
+  genero           String?
+  status           Status           @default(ativo)
   filialId         String
   filial           Filial           @relation(fields: [filialId], references: [id], onDelete: Cascade)
   cliente          Cliente?
@@ -268,7 +271,7 @@ model Contato {
   pessoaId         String          
   pessoa           Pessoa          @relation(fields: [pessoaId], references: [id], onDelete:Cascade)
   tipo             TipoContatos    @default(whatsapp) 
-  Contato          String
+  contato          String
   principal        Boolean         @default(true)   
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt             
@@ -310,6 +313,7 @@ model Funcionario {
   id        String   @id @default(cuid())
   pessoaId  String   @unique
   pessoa    Pessoa   @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+  cargo     String?  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

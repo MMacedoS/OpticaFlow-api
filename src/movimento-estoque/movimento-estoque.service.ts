@@ -135,12 +135,14 @@ export class MovimentoEstoqueService {
     return {
       status: 200,
       message: 'Movimentos de estoque listados com sucesso.',
-      data: movimentos,
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        moviments: movimentos,
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }

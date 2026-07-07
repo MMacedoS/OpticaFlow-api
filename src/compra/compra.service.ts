@@ -173,12 +173,14 @@ export class CompraService {
     return {
       status: 200,
       message: 'Compras listadas com sucesso.',
-      data: compras.map((compra) => this.mapResumo(compra)),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        shopping: compras.map((compra) => this.mapResumo(compra)),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }

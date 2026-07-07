@@ -190,12 +190,14 @@ export class FinanceiroLancamentoService {
     return {
       status: 200,
       message: 'Lancamentos financeiros listados com sucesso.',
-      data: lancamentos.map((lancamento) => this.mapResumo(lancamento)),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        releases: lancamentos.map((lancamento) => this.mapResumo(lancamento)),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }

@@ -5,14 +5,11 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { CreateEmpresaDto } from './dto/createEmpresa.dto';
 import { UpdateEmpresaDto } from './dto/updateEmpresa.dto';
+import { getSenhaBase } from 'src/utils/validator';
 
 @Injectable()
 export class EmpresaService {
   constructor(private readonly prisma: PrismaService) {}
-
-  private getSenhaBase(cnpj: string): string {
-    return cnpj.replace(/\D/g, '');
-  }
 
   async create(dto: CreateEmpresaDto): Promise<ResponseJson> {
     const empresaExistente = await this.prisma.empresa.findFirst({
@@ -37,7 +34,7 @@ export class EmpresaService {
       return { status: 400, message: 'Usuário já existe com este email.' };
     }
 
-    const senhaBase = this.getSenhaBase(dto.cnpj);
+    const senhaBase = getSenhaBase(dto.cnpj);
     const passwordHash = await bcrypt.hash(senhaBase, 10);
 
     try {

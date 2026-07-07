@@ -1,3 +1,4 @@
+import { AuthService } from 'src/auth/auth.service';
 import {
   CanActivate,
   ExecutionContext,
@@ -14,11 +15,12 @@ export class AcessoGuard implements CanActivate {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly authService: AuthService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
-    const token = this.extractTokenFromHeader(request);
+    const token = this.authService.extractTokenFromHeader(request);
 
     if (!token) {
       throw new UnauthorizedException('Token não informado.');
@@ -116,7 +118,7 @@ export class AcessoGuard implements CanActivate {
 
   private validateAndDecodeToken(token: string): { sub?: string } {
     try {
-      return this.jwtService.verify(token) as { sub?: string };
+      return this.jwtService.verify(token);
     } catch {
       throw new UnauthorizedException('Token inválido ou expirado.');
     }
@@ -176,27 +178,15 @@ export class AcessoGuard implements CanActivate {
     return Array.from(actionCandidates);
   }
 
-  private extractTokenFromHeader(request: Request): string | null {
-    const authHeader = request.headers.authorization;
-
-    if (!authHeader) {
-      return null;
-    }
-
-    const [type, token] = authHeader.split(' ');
-
-    if (type !== 'Bearer' || !token) {
-      return null;
-    }
-
-    return token;
-  }
-
   private normalizePath(path: string): string {
     if (!path) {
       return '';
     }
 
     return path.startsWith('/') ? path : `/${path}`;
+  }
+
+  public extractToken(): string | null {
+    return 'olas';
   }
 }

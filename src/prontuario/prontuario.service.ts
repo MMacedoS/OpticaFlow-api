@@ -853,12 +853,14 @@ export class ProntuarioService {
     return {
       status: 200,
       message: 'Anamneses listadas com sucesso.',
-      data: anamneses.map((anamnese) => this.mapAnamneseLista(anamnese)),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        itens: anamneses.map((anamnese) => this.mapAnamneseLista(anamnese)),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }
@@ -925,14 +927,16 @@ export class ProntuarioService {
     return {
       status: 200,
       message: 'Acuidades visuais listadas com sucesso.',
-      data: acuidadesVisuais.map((acuidadeVisual) =>
-        this.mapAcuidadeVisualLista(acuidadeVisual),
-      ),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        itens: acuidadesVisuais.map((acuidadeVisual) =>
+          this.mapAcuidadeVisualLista(acuidadeVisual),
+        ),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }
@@ -1003,12 +1007,16 @@ export class ProntuarioService {
     return {
       status: 200,
       message: 'Refrações listadas com sucesso.',
-      data: refracoes.map((refracao) => this.mapRegistroClinicoLista(refracao)),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        itens: refracoes.map((refracao) =>
+          this.mapRegistroClinicoLista(refracao),
+        ),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }
@@ -1075,14 +1083,16 @@ export class ProntuarioService {
     return {
       status: 200,
       message: 'Ceratometrias listadas com sucesso.',
-      data: ceratometrias.map((ceratometria) =>
-        this.mapRegistroClinicoLista(ceratometria),
-      ),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        itens: ceratometrias.map((ceratometria) =>
+          this.mapRegistroClinicoLista(ceratometria),
+        ),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }
@@ -1145,14 +1155,16 @@ export class ProntuarioService {
     return {
       status: 200,
       message: 'Biomicroscopias listadas com sucesso.',
-      data: biomicroscopias.map((biomicroscopia) =>
-        this.mapRegistroClinicoLista(biomicroscopia),
-      ),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        itens: biomicroscopias.map((biomicroscopia) =>
+          this.mapRegistroClinicoLista(biomicroscopia),
+        ),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }
@@ -1215,14 +1227,16 @@ export class ProntuarioService {
     return {
       status: 200,
       message: 'Fundoscopias listadas com sucesso.',
-      data: fundoscopias.map((fundoscopia) =>
-        this.mapRegistroClinicoLista(fundoscopia),
-      ),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        itens: fundoscopias.map((fundoscopia) =>
+          this.mapRegistroClinicoLista(fundoscopia),
+        ),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }
@@ -1285,14 +1299,16 @@ export class ProntuarioService {
     return {
       status: 200,
       message: 'Pressões intraoculares listadas com sucesso.',
-      data: pressoesIntraoculares.map((pressaoIntraocular) =>
-        this.mapRegistroClinicoLista(pressaoIntraocular),
-      ),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        itens: pressoesIntraoculares.map((pressaoIntraocular) =>
+          this.mapRegistroClinicoLista(pressaoIntraocular),
+        ),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }
@@ -1357,14 +1373,16 @@ export class ProntuarioService {
     return {
       status: 200,
       message: 'Diagnósticos listados com sucesso.',
-      data: diagnosticos.map((diagnostico) =>
-        this.mapRegistroClinicoLista(diagnostico),
-      ),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        itens: diagnosticos.map((diagnostico) =>
+          this.mapRegistroClinicoLista(diagnostico),
+        ),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }
@@ -1428,14 +1446,16 @@ export class ProntuarioService {
     return {
       status: 200,
       message: 'Exames complementares listados com sucesso.',
-      data: examesComplementares.map((exameComplementar) =>
-        this.mapRegistroClinicoLista(exameComplementar),
-      ),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        itens: examesComplementares.map((exameComplementar) =>
+          this.mapRegistroClinicoLista(exameComplementar),
+        ),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }
@@ -1498,14 +1518,16 @@ export class ProntuarioService {
     return {
       status: 200,
       message: 'Evoluções clínicas listadas com sucesso.',
-      data: evolucoesClinicas.map((evolucaoClinica) =>
-        this.mapRegistroClinicoLista(evolucaoClinica),
-      ),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        itens: evolucoesClinicas.map((evolucaoClinica) =>
+          this.mapRegistroClinicoLista(evolucaoClinica),
+        ),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }

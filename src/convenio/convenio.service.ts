@@ -112,12 +112,14 @@ export class ConvenioService {
     return {
       status: 200,
       message: 'Convênios listados com sucesso.',
-      data: convenios.map((convenio) => this.mapResumo(convenio)),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        agreements: convenios.map((convenio) => this.mapResumo(convenio)),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }

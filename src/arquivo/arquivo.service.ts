@@ -110,19 +110,21 @@ export class ArquivoService {
     return {
       status: 200,
       message: 'Arquivos listados com sucesso.',
-      data: arquivos.map((arquivo) => ({
-        ...this.mapResumo(arquivo),
-        filial: arquivo.filial,
-        pessoa: arquivo.pessoa,
-        atendimento: arquivo.atendimento,
-        prontuario: arquivo.prontuario,
-        enviadoPor: arquivo.enviado_por,
-      })),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        arquivos: arquivos.map((arquivo) => ({
+          ...this.mapResumo(arquivo),
+          filial: arquivo.filial,
+          pessoa: arquivo.pessoa,
+          atendimento: arquivo.atendimento,
+          prontuario: arquivo.prontuario,
+          enviadoPor: arquivo.enviado_por,
+        })),
+        pagination: {
+          page: pageNumber,
+          limit: limitNumber,
+          total: total,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }

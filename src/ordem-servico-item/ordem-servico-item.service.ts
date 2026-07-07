@@ -194,12 +194,14 @@ export class OrdemServicoItemService {
     return {
       status: 200,
       message: 'Itens de ordem de servico listados com sucesso.',
-      data: itens.map((item) => this.mapResumo(item)),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        itens: itens.map((item) => this.mapResumo(item)),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }

@@ -57,7 +57,11 @@ export class PessoaDto {
   status?: Status;
 }
 
-export class CreateFilialDto {
+export class UpdateFilialDto {
+  @IsOptional()
+  @IsString({ message: 'O id deve ser uma string válida.' })
+  id?: string;
+
   @IsOptional()
   @IsString({ message: 'O id da empresa deve ser uma string válida.' })
   empresaId!: string;

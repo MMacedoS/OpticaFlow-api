@@ -113,6 +113,10 @@ export class UsuarioService {
         email: true,
         username: true,
         pessoaId: true,
+        empresaId: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
   }

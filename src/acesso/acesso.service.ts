@@ -380,8 +380,6 @@ export class AcessoService {
       },
     });
 
-    console.log('Atribuições do usuário:', atribuicoes);
-
     return {
       status: 200,
       message: 'Atribuições carregadas com sucesso.',

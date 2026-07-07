@@ -6,6 +6,9 @@ import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 import { AcessoService } from 'src/acesso/acesso.service';
 import { Atribuicao } from 'src/acesso/interfaces/acesso.interface';
+import { Usuario } from '@prisma/client';
+import type { RequestWithUser } from './interface/user.interface';
+import { Request } from 'express';
 
 interface JwtPayload {
   sub: string;
@@ -178,8 +181,6 @@ export class AuthService {
         usuario.id,
       );
 
-      console.log('Atribuições do usuário:', lista.data);
-
       const atribuicoes: Atribuicao[] = lista.data || [];
 
       return {
@@ -201,5 +202,37 @@ export class AuthService {
       console.error('Erro ao renovar token de acesso:', error);
       return { status: 401, message: 'Token de refresh inválido ou expirado.' };
     }
+  }
+
+  async userLoggedIn(token: string): Promise<Partial<Usuario> | null> {
+    const payload = await this.validateTokenAndGetPayload(token);
+
+    if (!payload) {
+      return null;
+    }
+
+    const usuario = await this.usuarioService.findById(payload.sub);
+
+    if (!usuario) {
+      return null;
+    }
+
+    return usuario;
+  }
+
+  public extractTokenFromHeader(
+    request: RequestWithUser | Request,
+  ): string | null {
+    const authHeader = request.headers['authorization'];
+    if (!authHeader) {
+      return null;
+    }
+
+    const [type, token] = authHeader.split(' ');
+    if (type !== 'Bearer' || !token) {
+      return null;
+    }
+
+    return token;
   }
 }

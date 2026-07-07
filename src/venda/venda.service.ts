@@ -196,12 +196,14 @@ export class VendaService {
     return {
       status: 200,
       message: 'Vendas listadas com sucesso.',
-      data: vendas.map((venda) => this.mapResumo(venda)),
-      meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+      data: {
+        vendas: vendas.map((venda) => this.mapResumo(venda)),
+        pagination: {
+          total,
+          page: pageNumber,
+          limit: limitNumber,
+          totalPages: Math.ceil(total / limitNumber),
+        },
       },
     };
   }
