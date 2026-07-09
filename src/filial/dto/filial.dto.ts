@@ -55,6 +55,18 @@ export class PessoaDto {
   @IsOptional()
   @IsString({ message: 'O estado civil deve ser uma string válida.' })
   status?: Status;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EnderecoEmpresaDto)
+  enderecos?: EnderecoEmpresaDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ContatoEmpresaDto)
+  contatos?: ContatoEmpresaDto[];
 }
 
 export class CreateFilialDto {

@@ -4,34 +4,99 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
 import { CreateConvenioDto, UpdateConvenioDto } from './dto/convenio.dto';
 import { ConvenioService } from './convenio.service';
+import { UsuarioService } from 'src/usuario/usuario.service';
 
-@Controller('convenio')
+@Controller('agreements')
 @UseGuards(AuthGuard, AcessoGuard)
 export class ConvenioController {
-  constructor(private readonly convenioService: ConvenioService) {}
+  constructor(
+    private readonly convenioService: ConvenioService,
+    private readonly usuarioService: UsuarioService,
+  ) {}
 
   @Post()
-  async createConvenio(@Body() dto: CreateConvenioDto) {
+  async createConvenio(
+    @Body() dto: CreateConvenioDto,
+    @Req()
+    request?: {
+      user?: {
+        sub: string;
+      };
+    },
+  ) {
+    if (!dto.empresaId) {
+      const usuarioId = request?.user?.sub;
+
+      if (!usuarioId) {
+        return { status: 401, message: 'Usuário não autenticado.' };
+      }
+
+      const usuario = await this.usuarioService.findById(usuarioId);
+
+      if (!usuario) {
+        return { status: 401, message: 'Usuário não encontrado.' };
+      }
+
+      if (!usuario.empresaId) {
+        return {
+          status: 401,
+          message: 'Usuário não está associado a uma empresa.',
+        };
+      }
+
+      dto.empresaId = usuario.empresaId;
+    }
     return this.convenioService.create(dto);
   }
 
-  @Get('empresa/:empresaId')
+  @Get()
   async getAllByEmpresa(
     @Param('empresaId') empresaId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
     @Query('ativo') ativo?: string,
+    @Req()
+    request?: {
+      user?: {
+        sub: string;
+      };
+    },
   ) {
+    if (!empresaId) {
+      const usuarioId = request?.user?.sub;
+
+      if (!usuarioId) {
+        return { status: 401, message: 'Usuário não autenticado.' };
+      }
+
+      const usuario = await this.usuarioService.findById(usuarioId);
+
+      if (!usuario) {
+        return { status: 401, message: 'Usuário não encontrado.' };
+      }
+
+      if (!usuario.empresaId) {
+        return {
+          status: 401,
+          message: 'Usuário não está associado a uma empresa.',
+        };
+      }
+
+      empresaId = usuario.empresaId;
+    }
+
     return this.convenioService.findAllByEmpresa(
       empresaId,
       page ? parseInt(page, 10) : 1,
@@ -39,6 +104,11 @@ export class ConvenioController {
       search ?? '',
       this.parseBooleanQuery(ativo),
     );
+  }
+
+  @Patch(':id/status')
+  async updateStatus(@Param('id') id: string, @Body('status') status: string) {
+    return await this.convenioService.updateStatus(id, status);
   }
 
   @Get(':id')

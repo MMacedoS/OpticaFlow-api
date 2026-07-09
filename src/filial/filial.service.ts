@@ -249,8 +249,8 @@ export class FilialService {
     };
   }
 
-  async findById(id: string): Promise<ResponseJson> {
-    const filial = await this.prisma.filial.findUnique({
+  async findById(id: string) {
+    return await this.prisma.filial.findUnique({
       where: { id },
       include: {
         enderecos: true,
@@ -258,16 +258,13 @@ export class FilialService {
         config: true,
       },
     });
+  }
 
-    if (!filial) {
-      throw new NotFoundException('Filial não encontrada.');
-    }
-
-    return {
-      status: 200,
-      message: 'Filial encontrada.',
-      data: filial,
-    };
+  async findByPessoaId(pessoaId: string) {
+    return await this.prisma.pessoa.findUnique({
+      where: { id: pessoaId },
+      include: { filial: true },
+    });
   }
 
   async update(id: string, dto: UpdateFilialDto): Promise<ResponseJson> {

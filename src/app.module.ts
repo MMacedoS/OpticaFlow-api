@@ -33,6 +33,7 @@ import { FinanceiroLancamentoModule } from './financeiro-lancamento/financeiro-l
 import { ArquivoModule } from './arquivo/arquivo.module';
 import { NotificacaoModule } from './notificacao/notificacao.module';
 import { AuditoriaModule } from './auditoria/auditoria.module';
+import { ClienteModule } from './cliente/cliente.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { AuditoriaModule } from './auditoria/auditoria.module';
     ArquivoModule,
     NotificacaoModule,
     AuditoriaModule,
+    ClienteModule,
   ],
   controllers: [AppController],
   providers: [AppService],

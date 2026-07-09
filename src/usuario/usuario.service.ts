@@ -6,6 +6,7 @@ import { CreateUsuarioDto } from './dto/createUsuario.dto';
 import { Usuario } from './usuario.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { UpdateUsuarioDto } from './dto/updateUsuario.dto';
+import { Observable } from 'rxjs';
 
 @Injectable()
 export class UsuarioService {
@@ -172,6 +173,23 @@ export class UsuarioService {
         },
       },
     };
+  }
+
+  async findPessoaByUserId(userId: string): Promise<any> {
+    return await this.prisma.usuario.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        pessoaId: true,
+        empresaId: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        pessoa: true,
+      },
+    });
   }
 
   async deleteById(id: string): Promise<ResponseJson> {

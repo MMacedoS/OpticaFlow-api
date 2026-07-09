@@ -37,10 +37,9 @@ export class ConvenioService {
     try {
       const convenio = await this.prisma.convenio.create({
         data: {
-          empresaId: dto.empresaId,
+          empresaId: dto.empresaId || '',
           nome: dto.nome,
           registro: dto.registro,
-          ativo: dto.ativo ?? true,
         },
       });
 
@@ -86,7 +85,6 @@ export class ConvenioService {
 
     const where: Prisma.ConvenioWhereInput = {
       empresaId,
-      ...(typeof ativo === 'boolean' && { ativo }),
       ...(search
         ? {
             OR: [
@@ -113,7 +111,7 @@ export class ConvenioService {
       status: 200,
       message: 'Convênios listados com sucesso.',
       data: {
-        agreements: convenios.map((convenio) => this.mapResumo(convenio)),
+        agreements: convenios,
         pagination: {
           total,
           page: pageNumber,
@@ -176,7 +174,6 @@ export class ConvenioService {
       data: {
         nome: dto.nome,
         registro: dto.registro,
-        ativo: dto.ativo,
       },
     });
 
@@ -184,6 +181,25 @@ export class ConvenioService {
       status: 200,
       message: 'Convênio atualizado com sucesso.',
       data: convenioAtualizado,
+    };
+  }
+
+  async updateStatus(id: string, status: string): Promise<ResponseJson> {
+    const convenio = await this.prisma.convenio.findUnique({ where: { id } });
+
+    if (!convenio) {
+      return { status: 422, message: 'Convênio não encontrado.' };
+    }
+
+    const updatedConvenio = await this.prisma.convenio.update({
+      where: { id },
+      data: { ativo: status as Prisma.EnumStatusFieldUpdateOperationsInput },
+    });
+
+    return {
+      status: 200,
+      message: 'Status do convênio atualizado com sucesso.',
+      data: updatedConvenio,
     };
   }
 

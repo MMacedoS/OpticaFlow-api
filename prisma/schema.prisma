@@ -292,15 +292,15 @@ model Documento {
 }
 
 model Cliente {
-  id        String   @id @default(cuid())
-  pessoaId  String   @unique
-  pessoa    Pessoa   @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
-  status    Status   @default(ativo)
-  convenioId String?
-  convenio   Convenio? @relation(fields: [convenioId], references: [id], onDelete: SetNull)
-  numero_convenio String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String   @id @default(cuid())
+  pessoaId          String   @unique
+  pessoa            Pessoa   @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+  status            Status   @default(ativo)
+  convenioId        String?
+  convenio          Convenio? @relation(fields: [convenioId], references: [id], onDelete: SetNull)
+  numero_convenio   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   atendimentos Atendimento[]
   vendas Venda[]
@@ -964,7 +964,7 @@ model Convenio {
   empresaId           String
   nome                String
   registro            String?
-  ativo               Boolean     @default(true)
+  ativo               Status      @default(ativo)
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
 

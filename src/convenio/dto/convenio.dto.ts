@@ -1,16 +1,10 @@
-import { Type } from 'class-transformer';
-import {
-  IsBoolean,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MinLength,
-} from 'class-validator';
+import { Status } from '@prisma/client';
+import { IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CreateConvenioDto {
+  @IsOptional()
   @IsString({ message: 'O empresaId deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'O empresaId é obrigatório.' })
-  empresaId!: string;
+  empresaId?: string;
 
   @IsString({ message: 'O nome deve ser um texto válido.' })
   @IsNotEmpty({ message: 'O nome é obrigatório.' })
@@ -22,9 +16,7 @@ export class CreateConvenioDto {
   registro?: string;
 
   @IsOptional()
-  @Type(() => Boolean)
-  @IsBoolean({ message: 'O campo ativo deve ser um booleano.' })
-  ativo?: boolean;
+  ativo?: Status;
 }
 
 export class UpdateConvenioDto {
@@ -38,7 +30,6 @@ export class UpdateConvenioDto {
   registro?: string;
 
   @IsOptional()
-  @Type(() => Boolean)
-  @IsBoolean({ message: 'O campo ativo deve ser um booleano.' })
-  ativo?: boolean;
+  @IsString({ message: 'O campo ativo deve ser um string.' })
+  ativo?: Status;
 }

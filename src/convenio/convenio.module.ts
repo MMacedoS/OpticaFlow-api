@@ -4,11 +4,12 @@ import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { ConvenioController } from './convenio.controller';
 import { ConvenioService } from './convenio.service';
+import { UsuarioModule } from 'src/usuario/usuario.module';
 
 @Module({
   providers: [ConvenioService, AcessoGuard],
   controllers: [ConvenioController],
-  imports: [forwardRef(() => AuthModule), PrismaModule],
+  imports: [forwardRef(() => AuthModule), PrismaModule, UsuarioModule],
   exports: [ConvenioService],
 })
 export class ConvenioModule {}
