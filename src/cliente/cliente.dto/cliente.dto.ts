@@ -6,10 +6,6 @@ import {
   IsString,
   ValidateNested,
 } from 'class-validator';
-import {
-  ContatoEmpresaDto,
-  EnderecoEmpresaDto,
-} from 'src/empresa/dto/createEmpresa.dto';
 import { PessoaDto } from 'src/filial/dto/filial.dto';
 
 export class ClienteDto {
@@ -24,14 +20,25 @@ export class ClienteDto {
 
   @IsOptional()
   status?: Status;
+}
 
-  @Type(() => EnderecoEmpresaDto)
+export class updateClienteDto {
+  @IsOptional()
+  @IsString({ message: 'O id do convênio deve ser uma string válida.' })
+  id!: string;
+
+  @IsOptional()
+  @IsString({ message: 'O id do convênio deve ser uma string válida.' })
+  convenioId?: string;
+
+  @Type(() => PessoaDto)
   @ValidateNested()
   @IsNotEmpty({ message: 'A filial deve ter uma pessoa associada.' })
-  endereco?: EnderecoEmpresaDto;
+  pessoa!: PessoaDto;
 
-  @Type(() => ContatoEmpresaDto)
-  @ValidateNested()
-  @IsNotEmpty({ message: 'A filial deve ter uma pessoa associada.' })
-  contato?: ContatoEmpresaDto;
+  @IsOptional()
+  pessoaId!: string;
+
+  @IsOptional()
+  status?: Status;
 }

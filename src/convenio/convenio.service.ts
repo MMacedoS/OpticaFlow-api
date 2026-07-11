@@ -122,6 +122,22 @@ export class ConvenioService {
     };
   }
 
+  async findAll() {
+    const convenios = await this.prisma.convenio.findMany({
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return {
+      status: 200,
+      message: 'Convênios listados com sucesso.',
+      data: {
+        agreements: convenios,
+      },
+    };
+  }
+
   async findById(id: string): Promise<ResponseJson> {
     const convenio = await this.prisma.convenio.findUnique({
       where: { id },

@@ -106,6 +106,11 @@ export class ConvenioController {
     );
   }
 
+  @Get('all')
+  async getAll() {
+    return this.convenioService.findAll();
+  }
+
   @Patch(':id/status')
   async updateStatus(@Param('id') id: string, @Body('status') status: string) {
     return await this.convenioService.updateStatus(id, status);

@@ -1,8 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  Param,
+  Patch,
   Post,
+  Put,
   Query,
   UseGuards,
   UseInterceptors,
@@ -12,7 +16,7 @@ import { AuthGuard } from 'src/guards/auth/auth.guard';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { CurrentUser } from 'src/decorators/current-user.decorator.ts/current-user.decorator.ts';
 import { EnrichUserInterceptor } from 'src/interceptors/enrich-user.interceptor.ts/enrich-user.interceptor.ts';
-import { ClienteDto } from './cliente.dto/cliente.dto';
+import { ClienteDto, updateClienteDto } from './cliente.dto/cliente.dto';
 
 @Controller('customers')
 @UseGuards(AuthGuard, AcessoGuard)
@@ -47,5 +51,40 @@ export class ClienteController {
     }
 
     return this.clienteService.create(dto, user);
+  }
+
+  @Put(':id')
+  async update(
+    @Param('id') id: string,
+    @Body() dto: updateClienteDto,
+    @CurrentUser() user?: any,
+  ) {
+    if (!user) {
+      return { status: 401, message: 'Usuário não autenticado.' };
+    }
+
+    return this.clienteService.update(id, dto);
+  }
+
+  @Patch(':id/status')
+  async updateStatus(
+    @Param('id') id: string,
+    @Body('status') status: string,
+    @CurrentUser() user?: any,
+  ) {
+    if (!user) {
+      return { status: 401, message: 'Usuário não autenticado.' };
+    }
+
+    return this.clienteService.updateStatus(id, status as any);
+  }
+
+  @Delete(':id')
+  async delete(@Param('id') id: string, @CurrentUser() user?: any) {
+    if (!user) {
+      return { status: 401, message: 'Usuário não autenticado.' };
+    }
+
+    return this.clienteService.deleteById(id);
   }
 }

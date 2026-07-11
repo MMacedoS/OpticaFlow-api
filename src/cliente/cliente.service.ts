@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { ClienteDto } from './cliente.dto/cliente.dto';
+import { ClienteDto, updateClienteDto } from './cliente.dto/cliente.dto';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { Status, Usuario } from '@prisma/client';
 import { FilialService } from 'src/filial/filial.service';
@@ -206,7 +206,7 @@ export class ClienteService {
     };
   }
 
-  async update(id: string, dto: ClienteDto): Promise<ResponseJson> {
+  async update(id: string, dto: updateClienteDto): Promise<ResponseJson> {
     const cliente = await this.prisma.cliente.findUnique({
       where: { id },
     });
@@ -226,6 +226,27 @@ export class ClienteService {
           genero: dto.pessoa.genero,
           status: dto.pessoa.status,
         },
+      });
+
+      await tx.endereco.deleteMany({ where: { pessoaId: cliente.pessoaId } });
+      await tx.endereco.createMany({
+        data:
+          dto.pessoa.enderecos?.map((end) => ({
+            ...end,
+            pessoaId: cliente.pessoaId,
+            principal: end.principal ?? true,
+            numero: end.numero ?? '',
+          })) ?? [],
+      });
+
+      await tx.contato.deleteMany({ where: { pessoaId: cliente.pessoaId } });
+      await tx.contato.createMany({
+        data:
+          dto.pessoa.contatos?.map((cont) => ({
+            ...cont,
+            pessoaId: cliente.pessoaId,
+            principal: cont.principal ?? true,
+          })) ?? [],
       });
 
       const clienteUpd = await tx.cliente.update({
@@ -255,6 +276,8 @@ export class ClienteService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      await tx.contato.deleteMany({ where: { pessoaId: cliente.pessoaId } });
+      await tx.endereco.deleteMany({ where: { pessoaId: cliente.pessoaId } });
       await tx.cliente.delete({ where: { id } });
       await tx.pessoa.delete({ where: { id: cliente.pessoaId } });
     });
