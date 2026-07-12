@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
-import { UsuarioService } from 'src/usuario/usuario.service';
+import { UsuarioService } from 'src/app/usuario/usuario.service';
 
 @Injectable()
 export class EnrichUserInterceptor implements NestInterceptor {
