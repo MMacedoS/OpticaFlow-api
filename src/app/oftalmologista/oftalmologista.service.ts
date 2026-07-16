@@ -3,19 +3,19 @@ import * as bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
-import {
-  CreateOftalmologistaDto,
-  UpdateOftalmologistaDto,
-} from './dto/oftalmologista.dto';
 import { OftalmologistaResumo } from './interfaces/oftalmologista.interface';
+import { CreateDto, UpdateDto } from './dto/oftalmologista.dto';
+import { getSenhaBase } from 'src/utils/validator';
+import { ControleAcesso } from 'src/constants/acessos';
+import { register } from 'module';
 
 @Injectable()
 export class OftalmologistaService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateOftalmologistaDto): Promise<ResponseJson> {
+  async create(dto: CreateDto): Promise<ResponseJson> {
     const filial = await this.prisma.filial.findUnique({
-      where: { id: dto.filialId },
+      where: { id: dto.pessoa.filialId },
       select: { id: true, empresaId: true },
     });
 
@@ -23,9 +23,9 @@ export class OftalmologistaService {
       return { status: 422, message: 'Filial não encontrada.' };
     }
 
-    if (dto.cpf) {
+    if (dto.pessoa.cpf) {
       const pessoaComCpf = await this.prisma.pessoa.findUnique({
-        where: { cpf: dto.cpf },
+        where: { cpf: dto.pessoa.cpf },
       });
 
       if (pessoaComCpf) {
@@ -34,53 +34,67 @@ export class OftalmologistaService {
     }
 
     const usuarioExistente = await this.prisma.usuario.findUnique({
-      where: { email: dto.email },
+      where: { email: dto.pessoa.email },
     });
 
     if (usuarioExistente) {
       return { status: 400, message: 'Usuário já existe com este email.' };
     }
 
-    const senhaHash = await bcrypt.hash(dto.senha, 10);
+    const senhaBase = getSenhaBase(dto.pessoa.cpf);
+    const passwordHash = await bcrypt.hash(senhaBase, 10);
 
     try {
       const oftalmologista = await this.prisma.$transaction(async (tx) => {
         const pessoa = await tx.pessoa.create({
           data: {
-            nome: dto.nome,
-            cpf: dto.cpf,
-            email: dto.email,
+            nome: dto.pessoa.nome,
+            cpf: dto.pessoa.cpf,
+            email: dto.pessoa.email,
             filialId: filial.id,
+            enderecos: {
+              create: dto.pessoa.enderecos?.map((endereco) => ({
+                ...endereco,
+                numero: endereco.numero || '',
+              })),
+            },
+            contatos: {
+              create: dto.pessoa.contatos?.map((contato) => ({
+                ...contato,
+              })),
+            },
           },
         });
 
-        await tx.usuario.create({
+        const user = await tx.usuario.create({
           data: {
             empresaId: filial.empresaId,
-            email: dto.email,
-            senha: senhaHash,
-            username: dto.username ?? dto.nome,
+            email: dto.pessoa.email,
+            senha: passwordHash,
+            username: dto.pessoa.nome,
             pessoaId: pessoa.id,
           },
+        });
+
+        const todosAcessos = await tx.acesso.findMany({
+          where: {
+            nome: { notIn: ControleAcesso.getRestricoes('oftalmologista') },
+          },
+          select: { id: true },
+        });
+
+        await tx.atribuicao.createMany({
+          data: todosAcessos.map((acesso) => ({
+            usuarioId: user.id,
+            acessoId: acesso.id,
+          })),
+          skipDuplicates: true,
         });
 
         const novoOftalmologista = await tx.oftalmologista.create({
           data: {
             pessoaId: pessoa.id,
-          },
-          include: {
-            pessoa: {
-              include: {
-                usuario: {
-                  select: {
-                    id: true,
-                    email: true,
-                    username: true,
-                    empresaId: true,
-                  },
-                },
-              },
-            },
+            registro_profissional: dto.registro_profissional,
           },
         });
 
@@ -90,16 +104,7 @@ export class OftalmologistaService {
       return {
         status: 201,
         message: 'Oftalmologista criado com sucesso.',
-        data: {
-          id: oftalmologista.id,
-          pessoaId: oftalmologista.pessoaId,
-          nome: oftalmologista.pessoa.nome,
-          cpf: oftalmologista.pessoa.cpf,
-          email: oftalmologista.pessoa.email,
-          filialId: oftalmologista.pessoa.filialId,
-          createdAt: oftalmologista.createdAt,
-          updatedAt: oftalmologista.updatedAt,
-        },
+        data: oftalmologista as OftalmologistaResumo,
       };
     } catch (error) {
       if (
@@ -121,7 +126,7 @@ export class OftalmologistaService {
     page: number = 1,
     limit: number = 10,
     search: string = '',
-  ): Promise<OftalmologistaResumo[]> {
+  ): Promise<ResponseJson> {
     const pageNumber = Math.max(1, page);
     const limitNumber = Math.max(1, limit);
     const skip = (pageNumber - 1) * limitNumber;
@@ -134,69 +139,81 @@ export class OftalmologistaService {
             { email: { contains: search, mode: 'insensitive' as const } },
             {
               usuario: {
-                is: {
-                  email: { contains: search, mode: 'insensitive' as const },
-                },
+                email: { contains: search, mode: 'insensitive' as const },
               },
             },
             {
               usuario: {
-                is: {
-                  username: { contains: search, mode: 'insensitive' as const },
-                },
+                username: { contains: search, mode: 'insensitive' as const },
               },
             },
           ],
         }
       : {};
 
-    const oftalmologistas = await this.prisma.oftalmologista.findMany({
-      skip,
-      take: limitNumber,
-      where: {
-        pessoa: {
-          filialId,
-          ...searchFilter,
+    const [oftalmologistas, total] = await this.prisma.$transaction([
+      this.prisma.oftalmologista.findMany({
+        skip,
+        take: limitNumber,
+        where: {
+          pessoa: {
+            filialId,
+            ...searchFilter,
+          },
         },
-      },
-      select: {
-        id: true,
-        pessoaId: true,
-        createdAt: true,
-        updatedAt: true,
-        pessoa: {
-          select: {
-            nome: true,
-            cpf: true,
-            email: true,
-            filialId: true,
-            usuario: {
-              select: {
-                id: true,
-                email: true,
-                username: true,
-                empresaId: true,
+        select: {
+          id: true,
+          pessoaId: true,
+          registro_profissional: true,
+          createdAt: true,
+          updatedAt: true,
+          pessoa: {
+            select: {
+              nome: true,
+              cpf: true,
+              email: true,
+              filialId: true,
+              data_nascimento: true,
+              usuario: {
+                select: {
+                  id: true,
+                  email: true,
+                  username: true,
+                  empresaId: true,
+                },
               },
+              enderecos: true,
+              contatos: true,
             },
           },
         },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+      this.prisma.oftalmologista.count({
+        where: {
+          pessoa: {
+            filialId,
+            ...searchFilter,
+          },
+        },
+      }),
+    ]);
 
-    return oftalmologistas.map((oftalmologista) => ({
-      id: oftalmologista.id,
-      pessoaId: oftalmologista.pessoaId,
-      nome: oftalmologista.pessoa.nome,
-      cpf: oftalmologista.pessoa.cpf,
-      email: oftalmologista.pessoa.email,
-      filialId: oftalmologista.pessoa.filialId,
-      usuario: oftalmologista.pessoa.usuario,
-      createdAt: oftalmologista.createdAt,
-      updatedAt: oftalmologista.updatedAt,
-    }));
+    return {
+      status: 200,
+      message: 'Oftalmologistas encontrados.',
+      data: {
+        ophthalmologists: oftalmologistas,
+        pagination: {
+          page: pageNumber,
+          limit: limitNumber,
+          total: total,
+          totalPages: Math.ceil(total / limitNumber),
+        },
+      },
+    };
   }
 
   async findById(id: string): Promise<ResponseJson> {
@@ -247,10 +264,7 @@ export class OftalmologistaService {
     };
   }
 
-  async update(
-    id: string,
-    dto: UpdateOftalmologistaDto,
-  ): Promise<ResponseJson> {
+  async update(id: string, dto: UpdateDto): Promise<ResponseJson> {
     const oftalmologista = await this.prisma.oftalmologista.findUnique({
       where: { id },
       include: {
@@ -275,9 +289,9 @@ export class OftalmologistaService {
       };
     }
 
-    if (dto.cpf && dto.cpf !== oftalmologista.pessoa.cpf) {
+    if (dto.pessoa.cpf && dto.pessoa.cpf !== oftalmologista.pessoa.cpf) {
       const pessoaComCpf = await this.prisma.pessoa.findUnique({
-        where: { cpf: dto.cpf },
+        where: { cpf: dto.pessoa.cpf },
       });
 
       if (pessoaComCpf) {
@@ -285,9 +299,9 @@ export class OftalmologistaService {
       }
     }
 
-    if (dto.email && dto.email !== usuario.email) {
+    if (dto.pessoa.email && dto.pessoa.email !== usuario.email) {
       const usuarioComEmail = await this.prisma.usuario.findUnique({
-        where: { email: dto.email },
+        where: { email: dto.pessoa.email },
       });
 
       if (usuarioComEmail && usuarioComEmail.id !== usuario.id) {
@@ -295,7 +309,9 @@ export class OftalmologistaService {
       }
     }
 
-    const filialDestinoId = dto.filialId ?? oftalmologista.pessoa.filialId;
+    const filialDestinoId =
+      dto.pessoa.filialId ?? oftalmologista.pessoa.filialId;
+
     const filialDestino = await this.prisma.filial.findUnique({
       where: { id: filialDestinoId },
       select: { id: true, empresaId: true },
@@ -305,26 +321,50 @@ export class OftalmologistaService {
       return { status: 422, message: 'Filial não encontrada.' };
     }
 
-    const senhaHash = dto.senha ? await bcrypt.hash(dto.senha, 10) : null;
-
     await this.prisma.$transaction(async (tx) => {
       await tx.pessoa.update({
         where: { id: oftalmologista.pessoaId },
         data: {
-          nome: dto.nome,
-          cpf: dto.cpf,
-          email: dto.email,
+          nome: dto.pessoa.nome,
+          cpf: dto.pessoa.cpf,
+          email: dto.pessoa.email,
           filialId: filialDestino.id,
         },
       });
+
+      await tx.endereco.deleteMany({
+        where: { pessoaId: oftalmologista.pessoaId },
+      });
+
+      if (dto.pessoa.enderecos && dto.pessoa.enderecos.length > 0) {
+        await tx.endereco.createMany({
+          data: dto.pessoa.enderecos.map((endereco) => ({
+            ...endereco,
+            pessoaId: oftalmologista.pessoaId,
+            numero: endereco.numero || '',
+          })),
+        });
+      }
+
+      await tx.contato.deleteMany({
+        where: { pessoaId: oftalmologista.pessoaId },
+      });
+
+      if (dto.pessoa.contatos && dto.pessoa.contatos.length > 0) {
+        await tx.contato.createMany({
+          data: dto.pessoa.contatos.map((contato) => ({
+            ...contato,
+            pessoaId: oftalmologista.pessoaId,
+          })),
+        });
+      }
 
       await tx.usuario.update({
         where: { id: usuario.id },
         data: {
           empresaId: filialDestino.empresaId,
-          email: dto.email,
-          username: dto.username,
-          ...(senhaHash && { senha: senhaHash }),
+          email: dto.pessoa.email,
+          username: dto.pessoa.nome,
         },
       });
     });

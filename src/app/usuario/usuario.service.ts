@@ -108,7 +108,7 @@ export class UsuarioService {
 
   async findById(id: string): Promise<Usuario | null> {
     return this.prisma.usuario.findUnique({
-      where: { id },
+      where: { id: id },
       select: {
         id: true,
         email: true,

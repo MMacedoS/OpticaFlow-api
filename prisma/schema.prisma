@@ -319,19 +319,21 @@ model Funcionario {
 }
 
 model Optometrista {
-  id        String   @id @default(cuid())
-  pessoaId  String   @unique
-  pessoa    Pessoa   @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                        String   @id @default(cuid())
+  registro_profissional     String  
+  pessoaId                  String   @unique
+  pessoa                    Pessoa   @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 }
 
 model Oftalmologista {
-  id        String   @id @default(cuid())
-  pessoaId  String   @unique
-  pessoa    Pessoa   @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                        String   @id @default(cuid())
+  registro_profissional     String  
+  pessoaId                  String   @unique
+  pessoa                    Pessoa   @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 }
 
 model Fornecedor {

@@ -8,42 +8,51 @@ import {
   Put,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
-import {
-  CreateOftalmologistaDto,
-  UpdateOftalmologistaDto,
-} from './dto/oftalmologista.dto';
 import { OftalmologistaService } from './oftalmologista.service';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user.interceptor.ts/enrich-user.interceptor.ts';
+import { CreateDto, UpdateDto } from './dto/oftalmologista.dto';
+import { CurrentUser } from 'src/decorators/current-user.decorator.ts/current-user.decorator.ts';
 
-@Controller('oftalmologista')
+@Controller('ophthalmologists')
 @UseGuards(AuthGuard, AcessoGuard)
+@UseInterceptors(EnrichUserInterceptor)
 export class OftalmologistaController {
   constructor(private readonly oftalmologistaService: OftalmologistaService) {}
 
   @Post()
-  async createOftalmologista(@Body() dto: CreateOftalmologistaDto) {
+  async createOftalmologista(
+    @Body() dto: CreateDto,
+    @CurrentUser() user?: any,
+  ) {
+    if (!user || !user.pessoa || !user.pessoa.filialId) {
+      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
+    }
+
+    dto.pessoa.filialId = user.pessoa.filialId;
     return this.oftalmologistaService.create(dto);
   }
 
-  @Get('filial/:filialId')
+  @Get()
   async getAllByFilial(
-    @Param('filialId') filialId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
+    @CurrentUser() user?: any,
   ) {
+    if (!user || !user.pessoa || !user.pessoa.filialId) {
+      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
+    }
+
     const oftalmologistas = await this.oftalmologistaService.findAllByFilial(
-      filialId,
+      user.pessoa.filialId,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 10,
       search ?? '',
     );
-
-    if (!oftalmologistas || oftalmologistas.length === 0) {
-      return { error: 'Nenhum oftalmologista encontrado' };
-    }
 
     return oftalmologistas;
   }
@@ -54,10 +63,7 @@ export class OftalmologistaController {
   }
 
   @Put(':id')
-  async updateOftalmologista(
-    @Param('id') id: string,
-    @Body() dto: UpdateOftalmologistaDto,
-  ) {
+  async updateOftalmologista(@Param('id') id: string, @Body() dto: UpdateDto) {
     return this.oftalmologistaService.update(id, dto);
   }
 

@@ -162,7 +162,11 @@ export class AuthService {
         return { status: 401, message: 'Token de refresh inválido.' };
       }
 
+      console.log('Decoded refresh token:', decoded);
+
       const usuario = await this.usuarioService.findById(decoded.sub);
+
+      console.log('Usuario encontrado:', usuario);
 
       if (!usuario) {
         return { status: 401, message: 'Usuário não encontrado.' };

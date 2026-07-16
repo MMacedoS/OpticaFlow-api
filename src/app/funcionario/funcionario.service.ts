@@ -1,10 +1,10 @@
+import { ControleAcesso } from './../../constants/acessos';
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { FuncionarioResumo } from './interfaces/funcionario.interface';
-import { FuncionarioDto } from './dto/funcionario.dto';
+import { FuncionarioDto, UpdateFuncionarioDto } from './dto/funcionario.dto';
 import { getSenhaBase } from 'src/utils/validator';
 
 @Injectable()
@@ -50,6 +50,18 @@ export class FuncionarioService {
             cpf: dto.pessoa.cpf,
             email: dto.pessoa.email,
             filialId: filial.id,
+            data_nascimento: dto.pessoa.data_nascimento,
+            enderecos: {
+              create: dto.pessoa.enderecos?.map((endereco) => ({
+                ...endereco,
+                numero: endereco.numero || '',
+              })),
+            },
+            contatos: {
+              create: dto.pessoa.contatos?.map((contato) => ({
+                ...contato,
+              })),
+            },
           },
         });
 
@@ -65,7 +77,7 @@ export class FuncionarioService {
 
         const todosAcessos = await tx.acesso.findMany({
           where: {
-            nome: { notIn: ['empresa', 'usuario', 'filial', 'funcionario'] },
+            nome: { notIn: ControleAcesso.getRestricoes(dto.cargo) },
           },
           select: { id: true },
         });
@@ -81,6 +93,7 @@ export class FuncionarioService {
         const novoFuncionario = await tx.funcionario.create({
           data: {
             pessoaId: pessoa.id,
+            cargo: dto.cargo,
           },
           include: {
             pessoa: {
@@ -105,14 +118,7 @@ export class FuncionarioService {
         status: 201,
         message: 'Funcionário criado com sucesso.',
         data: {
-          id: funcionario.id,
-          pessoaId: funcionario.pessoaId,
-          nome: funcionario.pessoa.nome,
-          cpf: funcionario.pessoa.cpf,
-          email: funcionario.pessoa.email,
-          filialId: funcionario.pessoa.filialId,
-          createdAt: funcionario.createdAt,
-          updatedAt: funcionario.updatedAt,
+          employees: funcionario,
         },
       };
     } catch (error) {
@@ -267,7 +273,6 @@ export class FuncionarioService {
         skip: skip,
         take: limitNumber,
         include: {
-          convenio: true,
           pessoa: { include: { enderecos: true, contatos: true } },
         },
       }),
@@ -296,7 +301,7 @@ export class FuncionarioService {
     };
   }
 
-  async findById(id: string): Promise<ResponseJson> {
+  async findById(id: string): Promise<any> {
     const funcionario = await this.prisma.funcionario.findUnique({
       where: { id },
       select: {
@@ -310,12 +315,14 @@ export class FuncionarioService {
             cpf: true,
             email: true,
             filialId: true,
+            status: true,
             usuario: {
               select: {
                 id: true,
                 email: true,
                 username: true,
                 empresaId: true,
+                status: true,
               },
             },
           },
@@ -328,19 +335,15 @@ export class FuncionarioService {
     }
 
     return {
-      status: 200,
-      message: 'Funcionário encontrado.',
-      data: {
-        id: funcionario.id,
-        pessoaId: funcionario.pessoaId,
-        nome: funcionario.pessoa.nome,
-        cpf: funcionario.pessoa.cpf,
-        email: funcionario.pessoa.email,
-        filialId: funcionario.pessoa.filialId,
-        usuario: funcionario.pessoa.usuario,
-        createdAt: funcionario.createdAt,
-        updatedAt: funcionario.updatedAt,
-      },
+      id: funcionario.id,
+      pessoaId: funcionario.pessoaId,
+      nome: funcionario.pessoa.nome,
+      cpf: funcionario.pessoa.cpf,
+      email: funcionario.pessoa.email,
+      filialId: funcionario.pessoa.filialId,
+      usuario: funcionario.pessoa.usuario,
+      createdAt: funcionario.createdAt,
+      updatedAt: funcionario.updatedAt,
     };
   }
 
@@ -389,10 +392,6 @@ export class FuncionarioService {
       }
     }
 
-    const senhaHash = dto.pessoa.cpf
-      ? await bcrypt.hash(dto.pessoa.cpf, 10)
-      : null;
-
     await this.prisma.$transaction(async (tx) => {
       await tx.pessoa.update({
         where: { id: funcionario.pessoaId },
@@ -400,17 +399,115 @@ export class FuncionarioService {
           nome: dto.pessoa.nome,
           cpf: dto.pessoa.cpf,
           email: dto.pessoa.email,
-          filialId: filialDestino.id,
+          data_nascimento: dto.pessoa.data_nascimento,
+        },
+      });
+
+      await tx.endereco.deleteMany({
+        where: { pessoaId: funcionario.pessoaId },
+      });
+
+      if (dto.pessoa.enderecos && dto.pessoa.enderecos.length > 0) {
+        await tx.endereco.createMany({
+          data: dto.pessoa.enderecos.map((endereco) => ({
+            ...endereco,
+            pessoaId: funcionario.pessoaId,
+            numero: endereco.numero || '',
+          })),
+        });
+      }
+
+      if (dto.pessoa.contatos && dto.pessoa.contatos.length > 0) {
+        await tx.contato.deleteMany({
+          where: { pessoaId: funcionario.pessoaId },
+        });
+
+        await tx.contato.createMany({
+          data: dto.pessoa.contatos.map((contato) => ({
+            ...contato,
+            pessoaId: funcionario.pessoaId,
+          })),
+        });
+      }
+
+      await tx.usuario.update({
+        where: { id: usuario.id },
+        data: {
+          email: dto.pessoa.email,
+          username: dto.pessoa.nome,
+        },
+      });
+
+      if (dto.cargo && dto.cargo !== funcionario.cargo) {
+        await tx.atribuicao.deleteMany({
+          where: { usuarioId: usuario.id },
+        });
+
+        const todosAcessos = await tx.acesso.findMany({
+          where: {
+            nome: { notIn: ControleAcesso.getRestricoes(dto.cargo) },
+          },
+          select: { id: true },
+        });
+
+        await tx.atribuicao.createMany({
+          data: todosAcessos.map((acesso) => ({
+            usuarioId: usuario.id,
+            acessoId: acesso.id,
+          })),
+          skipDuplicates: true,
+        });
+
+        await tx.funcionario.update({
+          where: { id },
+          data: {
+            cargo: dto.cargo,
+          },
+        });
+      }
+    });
+
+    return this.findById(id);
+  }
+
+  async updateStatus(id: string, status: string): Promise<ResponseJson> {
+    const funcionario = await this.prisma.funcionario.findUnique({
+      where: { id },
+      include: {
+        pessoa: {
+          include: {
+            usuario: true,
+          },
+        },
+      },
+    });
+
+    if (!funcionario) {
+      return { status: 422, message: 'Funcionário não encontrado.' };
+    }
+
+    const usuario = funcionario.pessoa.usuario;
+
+    if (!usuario) {
+      return {
+        status: 422,
+        message: 'Usuário vinculado ao funcionário não foi encontrado.',
+      };
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      console.log('Atualizando status do funcionário e usuário...');
+      await tx.pessoa.update({
+        where: { id: funcionario.pessoaId },
+        data: {
+          status: status as any,
         },
       });
 
       await tx.usuario.update({
         where: { id: usuario.id },
         data: {
-          empresaId: filialDestino.empresaId,
-          email: dto.email,
-          username: dto.username,
-          ...(senhaHash && { senha: senhaHash }),
+          status: status as any,
         },
       });
     });
@@ -438,6 +535,9 @@ export class FuncionarioService {
 
     await this.prisma.$transaction(async (tx) => {
       if (funcionario.pessoa.usuario) {
+        await tx.atribuicao.deleteMany({
+          where: { usuarioId: funcionario.pessoa.usuario.id },
+        });
         await tx.usuario.delete({
           where: { id: funcionario.pessoa.usuario.id },
         });

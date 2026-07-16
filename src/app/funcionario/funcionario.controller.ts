@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -88,6 +89,14 @@ export class FuncionarioController {
     @Body() dto: UpdateFuncionarioDto,
   ) {
     return this.funcionarioService.update(id, dto);
+  }
+
+  @Patch(':id/status')
+  async updateFuncionarioStatus(
+    @Param('id') id: string,
+    @Body('status') status: string,
+  ) {
+    return this.funcionarioService.updateStatus(id, status);
   }
 
   @Delete(':id')

@@ -10,6 +10,7 @@ import { ResponseJson } from 'src/interface/response/response.interface';
 import { CreateFilialDto } from './dto/filial.dto';
 import { getSenhaBase } from 'src/utils/validator';
 import { UpdateFilialDto } from './dto/update.dto';
+import { ControleAcesso } from 'src/constants/acessos';
 
 @Injectable()
 export class FilialService {
@@ -78,27 +79,20 @@ export class FilialService {
             filialId: novaFilial.id,
             enderecos: {
               create: dto.enderecos.map((endereco) => ({
-                cep: endereco.cep,
-                numero: endereco.numero ?? 'S/N',
-                logradouro: endereco.logradouro,
-                bairro: endereco.bairro,
-                cidade: endereco.cidade,
-                uf: endereco.uf,
-                pais: endereco.pais,
+                ...endereco,
                 principal: endereco.principal ?? true,
+                numero: endereco.numero ?? '',
               })),
             },
-
             contatos: {
               create: dto.contatos.map((contato) => ({
-                tipo: contato.tipo,
-                contato: contato.contato,
+                ...contato,
                 principal: contato.principal ?? true,
               })),
             },
 
             funcionario: {
-              create: { cargo: 'Gerente' },
+              create: { cargo: 'gerente' },
             },
           },
         });
@@ -114,7 +108,7 @@ export class FilialService {
         });
 
         const todosAcessos = await tx.acesso.findMany({
-          where: { nome: { notIn: ['empresa', 'usuario', 'filial'] } },
+          where: { nome: { notIn: ControleAcesso.getRestricoes('gerente') } },
           select: { id: true },
         });
 
@@ -150,33 +144,16 @@ export class FilialService {
     page: number = 1,
     limit: number = 10,
     search: string = '',
-    status: string = 'ativo',
+    status: Status = 'ativo',
   ): Promise<ResponseJson> {
     const usuario = await this.prisma.usuario.findUnique({
       where: { id: userId },
     });
 
-    if (!usuario) {
-      return { status: 401, message: 'Usuário não encontrado.' };
-    }
-
-    const empresaId = usuario.empresaId;
-
-    if (!empresaId) {
+    if (!usuario || !usuario.empresaId) {
       return {
         status: 401,
-        message: 'Usuário não está associado a uma empresa.',
-      };
-    }
-
-    const empresa = await this.prisma.empresa.findUnique({
-      where: { id: empresaId },
-    });
-
-    if (!empresa) {
-      return {
-        status: 401,
-        message: 'Empresa associada ao usuário não encontrada.',
+        message: 'Usuário não encontrado ou não possui empresa vinculado.',
       };
     }
 
@@ -193,11 +170,17 @@ export class FilialService {
         }
       : {};
 
+    const whereFilter = {
+      empresaId: usuario.empresaId,
+      status: status, // 🔎 FILTRO DE STATUS APLICADO AQUI
+      ...searchFilter,
+    };
+
     const [filiais, total] = await this.prisma.$transaction([
       this.prisma.filial.findMany({
         skip,
         take: limitNumber,
-        where: { empresaId, ...searchFilter },
+        where: whereFilter,
         select: {
           id: true,
           nome: true,
@@ -217,7 +200,7 @@ export class FilialService {
               genero: true,
               status: true,
             },
-            where: { funcionario: { cargo: 'Gerente' } },
+            where: { funcionario: { cargo: 'gerente' } },
             take: 1,
           },
           status: true,
@@ -225,13 +208,14 @@ export class FilialService {
           updatedAt: true,
         },
       }),
-      this.prisma.filial.count({ where: { empresaId, ...searchFilter } }),
+      this.prisma.filial.count({
+        where: whereFilter,
+      }),
     ]);
 
-    const filiaisComGerente = filiais.map((f) => ({
+    const filiaisComGerente = filiais.map(({ pessoas, ...f }) => ({
       ...f,
-      pessoa: f.pessoas[0] || null,
-      pessoas: undefined,
+      pessoa: pessoas[0] || null,
     }));
 
     return {
@@ -294,6 +278,53 @@ export class FilialService {
         data: dto.contatos.map((cont) => ({ ...cont, filialId: id })),
       });
 
+      const pessoa = await tx.pessoa.update({
+        where: { id: dto.pessoa.id },
+        data: {
+          nome: dto.pessoa.nome,
+          cpf: dto.pessoa.cpf,
+          email: dto.pessoa.email,
+          data_nascimento: dto.pessoa.data_nascimento,
+          genero: dto.pessoa.genero,
+          status: dto.pessoa.status,
+        },
+      });
+
+      if (dto.enderecos && dto.enderecos.length > 0) {
+        await tx.endereco.deleteMany({
+          where: { pessoaId: pessoa.id },
+        });
+
+        await tx.endereco.createMany({
+          data: dto.enderecos.map((endereco) => ({
+            ...endereco,
+            pessoaId: pessoa.id,
+            numero: endereco.numero || '',
+          })),
+        });
+      }
+
+      if (dto.contatos && dto.contatos.length > 0) {
+        await tx.contato.deleteMany({
+          where: { pessoaId: pessoa.id },
+        });
+
+        await tx.contato.createMany({
+          data: dto.contatos.map((contato) => ({
+            ...contato,
+            pessoaId: pessoa.id,
+          })),
+        });
+      }
+
+      await tx.usuario.update({
+        where: { pessoaId: pessoa.id },
+        data: {
+          email: dto.pessoa.email,
+          username: dto.pessoa.nome,
+        },
+      });
+
       return updated;
     });
 
@@ -302,7 +333,7 @@ export class FilialService {
       include: {
         pessoas: {
           select: { id: true, nome: true, cpf: true, email: true },
-          where: { funcionario: { cargo: 'Gerente' } },
+          where: { funcionario: { cargo: 'gerente' } },
           take: 1,
         },
       },
@@ -392,6 +423,8 @@ export class FilialService {
       await tx.funcionario.deleteMany({
         where: { pessoaId: { in: pessoaIds } },
       });
+
+      await tx.cliente.deleteMany({ where: { pessoaId: { in: pessoaIds } } });
 
       await tx.pessoa.deleteMany({ where: { filialId: id } });
       await tx.filial.delete({ where: { id } });
