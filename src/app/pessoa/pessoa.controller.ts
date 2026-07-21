@@ -12,28 +12,18 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
-import { AuthGuard } from 'src/guards/auth/auth.guard';
-import { OptometristaService } from './optometrista.service';
-import { CreateDto, UpdateDto } from './dto/optometrista.dto';
 import { EnrichUserInterceptor } from 'src/interceptors/enrich-user.interceptor.ts/enrich-user.interceptor.ts';
+import { PessoaService } from './pessoa.service';
 import { CurrentUser } from 'src/decorators/current-user.decorator.ts/current-user.decorator.ts';
+import { PessoaDto } from './dto/pessoa';
+import { AuthGuard } from 'src/guards/auth/auth.guard';
 import { Status } from '@prisma/client';
 
-@Controller('optometrists')
+@Controller('peoples')
 @UseGuards(AuthGuard, AcessoGuard)
 @UseInterceptors(EnrichUserInterceptor)
-export class OptometristaController {
-  constructor(private readonly optometristaService: OptometristaService) {}
-
-  @Post()
-  async createOptometrista(@Body() dto: CreateDto, @CurrentUser() user?: any) {
-    if (!user || !user.pessoa || !user.pessoa.filialId) {
-      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
-    }
-
-    dto.pessoa.filialId = user.pessoa.filialId;
-    return this.optometristaService.create(dto);
-  }
+export class PessoaController {
+  constructor(private readonly pessoaService: PessoaService) {}
 
   @Get()
   async getAllByFilial(
@@ -45,14 +35,14 @@ export class OptometristaController {
     if (!user || !user.pessoa || !user.pessoa.filialId) {
       return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
     }
-    const optometristas = await this.optometristaService.findAllByFilial(
+    const pessoas = await this.pessoaService.findAllByFilial(
       user.pessoa.filialId,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 10,
       search ?? '',
     );
 
-    return optometristas;
+    return pessoas;
   }
 
   @Get('list')
@@ -63,36 +53,37 @@ export class OptometristaController {
     if (!user || !user.pessoa || !user.pessoa.filialId) {
       return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
     }
-    const optometristas = await this.optometristaService.findAllByFilial(
+    const pessoas = await this.pessoaService.findAllByFilial(
       user.pessoa.filialId,
       1,
       1000,
       search ?? '',
     );
 
-    return optometristas;
+    return pessoas;
   }
 
-  @Get(':id')
-  async getOptometristaById(@Param('id') id: string) {
-    return this.optometristaService.findById(id);
+  @Post()
+  async create(@Body() dto: PessoaDto, @CurrentUser() user?: any) {
+    if (!user || !user.pessoa || !user.pessoa.filialId) {
+      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
+    }
+    dto.filialId = user.pessoa.filialId;
+    return this.pessoaService.create(dto);
   }
 
   @Put(':id')
-  async updateOptometrista(@Param('id') id: string, @Body() dto: UpdateDto) {
-    return this.optometristaService.update(id, dto);
+  async update(@Param('id') id: string, @Body() dto: PessoaDto) {
+    return this.pessoaService.update(id, dto);
   }
 
   @Patch(':id/status')
-  async updateOptometristaStatus(
-    @Param('id') id: string,
-    @Body('status') status: Status,
-  ) {
-    return this.optometristaService.updateStatus(id, status);
+  async updateStatus(@Param('id') id: string, @Body() status: Status) {
+    return this.pessoaService.updateStatus(id, status);
   }
 
   @Delete(':id')
-  async deleteOptometrista(@Param('id') id: string) {
-    return this.optometristaService.deleteById(id);
+  async delete(@Param('id') id: string) {
+    return this.pessoaService.delete(id);
   }
 }

@@ -8,26 +8,33 @@ import {
   Put,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { StatusAgenda } from '@prisma/client';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
 import { CreateAgendaDto, UpdateAgendaDto } from './dto/agenda.dto';
 import { AgendaService } from './agenda.service';
+import { CurrentUser } from 'src/decorators/current-user.decorator.ts/current-user.decorator.ts';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user.interceptor.ts/enrich-user.interceptor.ts';
 
-@Controller('agenda')
+@Controller('schedules')
 @UseGuards(AuthGuard, AcessoGuard)
+@UseInterceptors(EnrichUserInterceptor)
 export class AgendaController {
   constructor(private readonly agendaService: AgendaService) {}
 
   @Post()
-  async createAgenda(@Body() dto: CreateAgendaDto) {
+  async createAgenda(@Body() dto: CreateAgendaDto, @CurrentUser() user?: any) {
+    if (!user || !user.pessoa || !user.pessoa.filialId) {
+      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
+    }
+    dto.filialId = user.pessoa.filialId;
     return this.agendaService.create(dto);
   }
 
-  @Get('filial/:filialId')
+  @Get()
   async getAllByFilial(
-    @Param('filialId') filialId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
@@ -35,9 +42,14 @@ export class AgendaController {
     @Query('profissionalId') profissionalId?: string,
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
+    @CurrentUser() user?: any,
   ) {
+    if (!user || !user.pessoa || !user.pessoa.filialId) {
+      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
+    }
+
     const agendas = await this.agendaService.findAllByFilial(
-      filialId,
+      user.pessoa.filialId,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 10,
       search ?? '',
@@ -46,10 +58,6 @@ export class AgendaController {
       dataInicio,
       dataFim,
     );
-
-    if (!agendas || agendas.length === 0) {
-      return { error: 'Nenhuma agenda encontrada' };
-    }
 
     return agendas;
   }

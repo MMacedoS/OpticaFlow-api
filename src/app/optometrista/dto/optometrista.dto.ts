@@ -5,11 +5,9 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  Length,
-  MinLength,
   ValidateNested,
 } from 'class-validator';
-import { PessoaDto } from 'src/app/filial/dto/filial.dto';
+import { PessoaDto } from 'src/app/pessoa/dto/pessoa';
 
 export class CreateDto {
   @IsOptional()

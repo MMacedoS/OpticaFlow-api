@@ -34,6 +34,7 @@ import { ArquivoModule } from './app/arquivo/arquivo.module';
 import { NotificacaoModule } from './app/notificacao/notificacao.module';
 import { AuditoriaModule } from './app/auditoria/auditoria.module';
 import { ClienteModule } from './app/cliente/cliente.module';
+import { PessoaModule } from './app/pessoa/pessoa.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { ClienteModule } from './app/cliente/cliente.module';
     NotificacaoModule,
     AuditoriaModule,
     ClienteModule,
+    PessoaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

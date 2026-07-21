@@ -45,7 +45,6 @@ export class ClienteController {
 
   @Post()
   async create(@Body() dto: ClienteDto, @CurrentUser() user?: any) {
-    console.log('Current User:', user);
     if (!user) {
       return { status: 401, message: 'Usuário não autenticado.' };
     }

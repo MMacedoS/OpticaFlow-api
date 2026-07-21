@@ -11,21 +11,22 @@ import {
 } from 'class-validator';
 
 export class CreateAgendaDto {
-  @IsString({ message: 'O empresaId deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'O empresaId é obrigatório.' })
-  empresaId!: string;
-
   @IsString({ message: 'O filialId deve ser um texto válido.' })
   @IsNotEmpty({ message: 'O filialId é obrigatório.' })
-  filialId!: string;
-
   @IsOptional()
+  filialId?: string;
+
   @IsString({ message: 'O pessoaId deve ser um texto válido.' })
+  @IsOptional()
   pessoaId?: string;
 
   @IsOptional()
   @IsString({ message: 'O profissionalId deve ser um texto válido.' })
   profissionalId?: string;
+
+  @IsOptional()
+  @IsString({ message: 'O profissionalId deve ser um texto válido.' })
+  clienteId?: string;
 
   @IsDateString({}, { message: 'A dataHora deve ser uma data válida.' })
   dataHora!: string;
@@ -41,24 +42,34 @@ export class CreateAgendaDto {
   status?: StatusAgenda;
 
   @IsOptional()
+  @IsString({ message: 'O convenioId deve ser um texto válido.' })
+  convenioId?: string;
+
+  @IsOptional()
+  @IsString({ message: 'A queixa principal deve ser um texto válido.' })
+  queixa_principal?: string;
+
+  @IsOptional()
   @IsString({ message: 'A observação deve ser um texto válido.' })
   observacao?: string;
+
+  @IsOptional()
+  temResponsavel?: boolean;
 }
 
 export class UpdateAgendaDto {
-  @IsOptional()
-  @IsString({ message: 'O empresaId deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'O empresaId não pode ser vazio.' })
-  empresaId?: string;
+  @IsString({ message: 'O id da agenda deve ser um texto válido.' })
+  @IsNotEmpty({ message: 'O id da agenda é obrigatório.' })
+  id!: string;
 
-  @IsOptional()
   @IsString({ message: 'O filialId deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'O filialId não pode ser vazio.' })
+  @IsNotEmpty({ message: 'O filialId é obrigatório.' })
+  @IsOptional()
   filialId?: string;
 
   @IsOptional()
   @IsString({ message: 'O pessoaId deve ser um texto válido.' })
-  pessoaId?: string;
+  pessoaId!: string;
 
   @IsOptional()
   @IsString({ message: 'O profissionalId deve ser um texto válido.' })
@@ -81,4 +92,7 @@ export class UpdateAgendaDto {
   @IsOptional()
   @IsString({ message: 'A observação deve ser um texto válido.' })
   observacao?: string;
+
+  @IsOptional()
+  temResponsavel?: boolean;
 }

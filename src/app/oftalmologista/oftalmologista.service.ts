@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { Prisma } from '@prisma/client';
+import { Prisma, Status } from '@prisma/client';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { OftalmologistaResumo } from './interfaces/oftalmologista.interface';
@@ -104,7 +104,7 @@ export class OftalmologistaService {
       return {
         status: 201,
         message: 'Oftalmologista criado com sucesso.',
-        data: oftalmologista as OftalmologistaResumo,
+        data: oftalmologista,
       };
     } catch (error) {
       if (
@@ -174,9 +174,11 @@ export class OftalmologistaService {
               email: true,
               filialId: true,
               data_nascimento: true,
+              status: true,
               usuario: {
                 select: {
                   id: true,
+                  status: true,
                   email: true,
                   username: true,
                   empresaId: true,
@@ -372,6 +374,46 @@ export class OftalmologistaService {
     return this.findById(id);
   }
 
+  async updateStatus(id: string, status: Status): Promise<ResponseJson> {
+    const oftalmologista = await this.prisma.oftalmologista.findUnique({
+      where: { id },
+      include: {
+        pessoa: {
+          include: {
+            usuario: true,
+          },
+        },
+      },
+    });
+
+    if (!oftalmologista) {
+      return { status: 422, message: 'Oftalmologista não encontrado.' };
+    }
+
+    const usuario = oftalmologista.pessoa.usuario;
+
+    if (!usuario) {
+      return {
+        status: 422,
+        message: 'Usuário vinculado ao oftalmologista não foi encontrado.',
+      };
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.pessoa.update({
+        where: { id: oftalmologista.pessoaId },
+        data: { status },
+      });
+
+      await tx.usuario.update({
+        where: { id: usuario.id },
+        data: { status },
+      });
+    });
+
+    return { status: 200, message: 'Status do oftalmologista atualizado.' };
+  }
+
   async deleteById(id: string): Promise<ResponseJson> {
     const oftalmologista = await this.prisma.oftalmologista.findUnique({
       where: { id },
@@ -399,6 +441,10 @@ export class OftalmologistaService {
 
       await tx.pessoa.delete({
         where: { id: oftalmologista.pessoaId },
+      });
+
+      await tx.oftalmologista.delete({
+        where: { id },
       });
     });
 

@@ -496,7 +496,6 @@ export class FuncionarioService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      console.log('Atualizando status do funcionário e usuário...');
       await tx.pessoa.update({
         where: { id: funcionario.pessoaId },
         data: {

@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -16,6 +17,7 @@ import { OftalmologistaService } from './oftalmologista.service';
 import { EnrichUserInterceptor } from 'src/interceptors/enrich-user.interceptor.ts/enrich-user.interceptor.ts';
 import { CreateDto, UpdateDto } from './dto/oftalmologista.dto';
 import { CurrentUser } from 'src/decorators/current-user.decorator.ts/current-user.decorator.ts';
+import { Status } from '@prisma/client';
 
 @Controller('ophthalmologists')
 @UseGuards(AuthGuard, AcessoGuard)
@@ -65,6 +67,14 @@ export class OftalmologistaController {
   @Put(':id')
   async updateOftalmologista(@Param('id') id: string, @Body() dto: UpdateDto) {
     return this.oftalmologistaService.update(id, dto);
+  }
+
+  @Patch(':id/status')
+  async updateOftalmologistaStatus(
+    @Param('id') id: string,
+    @Body('status') status: Status,
+  ) {
+    return this.oftalmologistaService.updateStatus(id, status);
   }
 
   @Delete(':id')
