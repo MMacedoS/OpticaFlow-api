@@ -8,6 +8,7 @@ import {
   Put,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { StatusAtendimento } from '@prisma/client';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
@@ -17,9 +18,12 @@ import {
   UpdateAtendimentoDto,
 } from './dto/atendimento.dto';
 import { AtendimentoService } from './atendimento.service';
+import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 
-@Controller('atendimento')
+@Controller('Appointments')
 @UseGuards(AuthGuard, AcessoGuard)
+@UseInterceptors(EnrichUserInterceptor)
 export class AtendimentoController {
   constructor(private readonly atendimentoService: AtendimentoService) {}
 
@@ -28,9 +32,8 @@ export class AtendimentoController {
     return this.atendimentoService.create(dto);
   }
 
-  @Get('filial/:filialId')
+  @Get()
   async getAllByFilial(
-    @Param('filialId') filialId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
@@ -39,9 +42,14 @@ export class AtendimentoController {
     @Query('pacienteId') pacienteId?: string,
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
+    @CurrentUser() user?: any,
   ) {
+    if (!user || !user.pessoa || !user.pessoa.filialId) {
+      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
+    }
+
     const atendimentos = await this.atendimentoService.findAllByFilial(
-      filialId,
+      user.pessoa.filialId,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 10,
       search ?? '',
@@ -51,10 +59,6 @@ export class AtendimentoController {
       dataInicio,
       dataFim,
     );
-
-    if (!atendimentos || atendimentos.length === 0) {
-      return { error: 'Nenhum atendimento encontrado' };
-    }
 
     return atendimentos;
   }

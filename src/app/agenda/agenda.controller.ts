@@ -15,8 +15,8 @@ import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
 import { CreateAgendaDto, UpdateAgendaDto } from './dto/agenda.dto';
 import { AgendaService } from './agenda.service';
-import { CurrentUser } from 'src/decorators/current-user.decorator.ts/current-user.decorator.ts';
-import { EnrichUserInterceptor } from 'src/interceptors/enrich-user.interceptor.ts/enrich-user.interceptor.ts';
+import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 
 @Controller('schedules')
 @UseGuards(AuthGuard, AcessoGuard)
@@ -69,7 +69,7 @@ export class AgendaController {
 
   @Put(':id')
   async updateAgenda(@Param('id') id: string, @Body() dto: UpdateAgendaDto) {
-    return this.agendaService.update(id, dto);
+    return this.agendaService.update(dto);
   }
 
   @Delete(':id')

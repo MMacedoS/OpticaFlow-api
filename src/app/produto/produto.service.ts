@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, TipoProduto } from '@prisma/client';
+import { Prisma, Status, TipoProduto } from '@prisma/client';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateProdutoDto, UpdateProdutoDto } from './dto/produto.dto';
@@ -22,7 +22,7 @@ export class ProdutoService {
     const produtoExistente = await this.prisma.produto.findUnique({
       where: {
         empresaId_sku: {
-          empresaId: dto.empresaId,
+          empresaId: empresa.id,
           sku: dto.sku,
         },
       },
@@ -36,24 +36,63 @@ export class ProdutoService {
     }
 
     try {
-      const produto = await this.prisma.produto.create({
-        data: {
-          empresaId: dto.empresaId,
-          nome: dto.nome,
-          sku: dto.sku,
-          tipo: dto.tipo,
-          categoria: dto.categoria,
-          descricao: dto.descricao,
-          preco_custo: dto.preco_custo,
-          preco_venda: dto.preco_venda,
-          ativo: dto.ativo ?? true,
-        },
+      const resultado = await this.prisma.$transaction(async (tx) => {
+        const produto = await tx.produto.create({
+          data: {
+            empresaId: empresa.id,
+            nome: dto.nome,
+            sku: dto.sku,
+            tipo: dto.tipo,
+            categoria: dto.categoria,
+            descricao: dto.descricao,
+            preco_custo: dto.preco_custo,
+            margem_lucro: dto.margem_lucro ?? 0,
+            preco_venda: dto.preco_venda,
+          },
+        });
+
+        if (dto.tipo !== 'servico') {
+          if (!dto.filialId) {
+            throw new Error(
+              'O campo filialId é obrigatório para inicializar o estoque do produto.',
+            );
+          }
+
+          let estoque = await tx.estoque.findFirst({
+            where: {
+              empresaId: dto.empresaId,
+              filialId: dto.filialId,
+            },
+          });
+
+          if (!estoque) {
+            estoque = await tx.estoque.create({
+              data: {
+                empresaId: empresa.id,
+                filialId: dto.filialId,
+                nome: `Estoque Principal - Filial ID ${dto.filialId.substring(0, 5)}`,
+              },
+            });
+          }
+
+          await tx.estoqueItem.create({
+            data: {
+              estoqueId: estoque.id,
+              produtoId: produto.id,
+              quantidade: dto.quantidade_inicial ?? 0,
+              minimo: dto.estoque_minimo ?? null,
+              maximo: dto.estoque_maximo ?? null,
+            },
+          });
+        }
+
+        return produto;
       });
 
       return {
         status: 201,
-        message: 'Produto criado com sucesso.',
-        data: produto,
+        message: 'Item gravado com sucesso no catálogo.',
+        data: resultado,
       };
     } catch (error) {
       if (
@@ -62,7 +101,7 @@ export class ProdutoService {
       ) {
         return {
           status: 422,
-          message: 'Produto já existe com estes dados.',
+          message: 'Conflito de dados: Este SKU já está em uso nesta empresa.',
         };
       }
 
@@ -76,7 +115,7 @@ export class ProdutoService {
     limit: number = 10,
     search: string = '',
     tipo?: TipoProduto,
-    ativo?: boolean,
+    ativo?: Status,
   ): Promise<ResponseJson> {
     const empresa = await this.prisma.empresa.findUnique({
       where: { id: empresaId },
@@ -115,6 +154,18 @@ export class ProdutoService {
         orderBy: {
           createdAt: 'desc',
         },
+        include: {
+          estoque_itens: {
+            select: {
+              quantidade: true,
+              minimo: true,
+              maximo: true,
+              estoque: {
+                select: { filialId: true, nome: true },
+              },
+            },
+          },
+        },
       }),
       this.prisma.produto.count({ where }),
     ]);
@@ -137,6 +188,9 @@ export class ProdutoService {
   async findById(id: string): Promise<ResponseJson> {
     const produto = await this.prisma.produto.findUnique({
       where: { id },
+      include: {
+        estoque_itens: true,
+      },
     });
 
     if (!produto) {
@@ -192,8 +246,8 @@ export class ProdutoService {
         categoria: dto.categoria,
         descricao: dto.descricao,
         preco_custo: dto.preco_custo,
+        margem_lucro: dto.margem_lucro,
         preco_venda: dto.preco_venda,
-        ativo: dto.ativo,
       },
     });
 
@@ -202,6 +256,30 @@ export class ProdutoService {
       message: 'Produto atualizado com sucesso.',
       data: produtoAtualizado,
     };
+  }
+
+  async updateStatus(id: string, ativo: Status): Promise<ResponseJson> {
+    try {
+      const produtoAtualizado = await this.prisma.produto.update({
+        where: { id },
+        data: { ativo },
+      });
+
+      return {
+        status: 200,
+        message: 'Status do produto atualizado com sucesso.',
+        data: produtoAtualizado,
+      };
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        return { status: 422, message: 'Produto não encontrado.' };
+      }
+
+      throw error;
+    }
   }
 
   async deleteById(id: string): Promise<ResponseJson> {

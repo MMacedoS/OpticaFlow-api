@@ -14,8 +14,8 @@ import {
 import { ClienteService } from './cliente.service';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
-import { CurrentUser } from 'src/decorators/current-user.decorator.ts/current-user.decorator.ts';
-import { EnrichUserInterceptor } from 'src/interceptors/enrich-user.interceptor.ts/enrich-user.interceptor.ts';
+import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 import { ClienteDto, updateClienteDto } from './cliente.dto/cliente.dto';
 
 @Controller('customers')

@@ -14,9 +14,9 @@ import {
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
 import { OftalmologistaService } from './oftalmologista.service';
-import { EnrichUserInterceptor } from 'src/interceptors/enrich-user.interceptor.ts/enrich-user.interceptor.ts';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 import { CreateDto, UpdateDto } from './dto/oftalmologista.dto';
-import { CurrentUser } from 'src/decorators/current-user.decorator.ts/current-user.decorator.ts';
+import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
 import { Status } from '@prisma/client';
 
 @Controller('ophthalmologists')

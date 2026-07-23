@@ -1,61 +1,90 @@
-import { Type } from 'class-transformer';
 import {
-  IsBoolean,
-  IsEnum,
-  IsNotEmpty,
-  IsNumber,
-  IsOptional,
   IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsOptional,
+  IsNumber,
   Min,
   MinLength,
 } from 'class-validator';
-import { TipoProduto } from '@prisma/client';
+import { Type } from 'class-transformer';
+import { Status, TipoProduto } from '@prisma/client';
 
 export class CreateProdutoDto {
-  @IsString({ message: 'O empresaId deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'O empresaId é obrigatório.' })
-  empresaId!: string;
+  @IsOptional()
+  @IsString()
+  empresaId?: string;
 
-  @IsString({ message: 'O nome deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'O nome é obrigatório.' })
-  @MinLength(2, { message: 'O nome deve ter no mínimo 2 caracteres.' })
+  @IsOptional()
+  @IsString()
+  filialId?: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'O nome do item é obrigatório.' })
   nome!: string;
 
-  @IsString({ message: 'O SKU deve ser um texto válido.' })
+  @IsString()
   @IsNotEmpty({ message: 'O SKU é obrigatório.' })
   sku!: string;
 
   @IsEnum(TipoProduto, {
-    message: 'O tipo informado não é válido.',
+    message: 'O tipo deve ser armacao, lente, acesssorio ou servico.',
   })
   tipo!: TipoProduto;
 
+  @IsString()
   @IsOptional()
-  @IsString({ message: 'A categoria deve ser um texto válido.' })
   categoria?: string;
 
+  @IsString()
   @IsOptional()
-  @IsString({ message: 'A descrição deve ser um texto válido.' })
   descricao?: string;
 
-  @IsOptional()
   @Type(() => Number)
   @IsNumber({}, { message: 'O preço de custo deve ser um número válido.' })
   @Min(0, { message: 'O preço de custo não pode ser negativo.' })
+  @IsOptional()
   preco_custo?: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  margem_lucro?: number = 0;
 
   @Type(() => Number)
   @IsNumber({}, { message: 'O preço de venda deve ser um número válido.' })
   @Min(0, { message: 'O preço de venda não pode ser negativo.' })
   preco_venda!: number;
 
+  @IsEnum(Status, { message: 'O status deve ser ativo ou inativo.' })
   @IsOptional()
-  @Type(() => Boolean)
-  @IsBoolean({ message: 'O campo ativo deve ser um booleano.' })
-  ativo?: boolean;
+  ativo?: Status = Status.ativo;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  quantidade_inicial?: number = 0;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  estoque_minimo?: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  estoque_maximo?: number;
 }
 
 export class UpdateProdutoDto {
+  @IsOptional()
+  @IsString()
+  empresaId?: string;
+
   @IsOptional()
   @IsString({ message: 'O nome deve ser um texto válido.' })
   @MinLength(2, { message: 'O nome deve ter no mínimo 2 caracteres.' })
@@ -76,24 +105,50 @@ export class UpdateProdutoDto {
   @IsString({ message: 'A categoria deve ser um texto válido.' })
   categoria?: string;
 
+  @IsString()
   @IsOptional()
-  @IsString({ message: 'A descrição deve ser um texto válido.' })
   descricao?: string;
 
-  @IsOptional()
   @Type(() => Number)
   @IsNumber({}, { message: 'O preço de custo deve ser um número válido.' })
   @Min(0, { message: 'O preço de custo não pode ser negativo.' })
+  @IsOptional()
   preco_custo?: number;
 
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
   @IsOptional()
+  margem_lucro?: number = 0;
+
   @Type(() => Number)
   @IsNumber({}, { message: 'O preço de venda deve ser um número válido.' })
   @Min(0, { message: 'O preço de venda não pode ser negativo.' })
-  preco_venda?: number;
+  preco_venda!: number;
 
+  @IsEnum(Status, { message: 'O status deve ser ativo ou inativo.' })
   @IsOptional()
-  @Type(() => Boolean)
-  @IsBoolean({ message: 'O campo ativo deve ser um booleano.' })
-  ativo?: boolean;
+  ativo?: Status = Status.ativo;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  quantidade_inicial?: number = 0;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  estoque_minimo?: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  estoque_maximo?: number;
+}
+export class UpdateStatusDto {
+  @IsEnum(Status, { message: 'O status deve ser ativo ou inativo.' })
+  status!: Status;
 }

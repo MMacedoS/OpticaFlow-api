@@ -3,6 +3,7 @@ import { Prisma, StatusAgenda, StatusAtendimento } from '@prisma/client';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateAgendaDto, UpdateAgendaDto } from './dto/agenda.dto';
+import { prepareNumeroOrdemServico } from 'src/utils/validator';
 
 @Injectable()
 export class AgendaService {
@@ -37,7 +38,7 @@ export class AgendaService {
     }
 
     try {
-      const agendaAtendimento = await this.prisma.$transaction(async (tx) => {
+      const resultadoTransacao = await this.prisma.$transaction(async (tx) => {
         const agenda = await tx.agenda.create({
           data: {
             empresaId: filial.empresaId,
@@ -52,7 +53,7 @@ export class AgendaService {
         });
 
         if (dto.profissionalId && dto.pessoaId) {
-          await tx.atendimento.create({
+          const atendimento = await tx.atendimento.create({
             data: {
               empresaId: filial.empresaId,
               filialId: filial.id,
@@ -66,13 +67,53 @@ export class AgendaService {
               queixa_principal: dto.queixa_principal,
             },
           });
+
+          if (!dto.ordemServico) {
+            return { agenda };
+          }
+
+          const ordemServico = await tx.ordemServico.create({
+            data: {
+              empresaId: filial.empresaId,
+              filialId: filial.id,
+              clienteId: dto.clienteId || null,
+              atendimentoId: atendimento?.id || null,
+
+              numero: prepareNumeroOrdemServico(),
+              status: dto.ordemServico.status,
+              valor_total: dto.ordemServico.valor_total ?? 0,
+              descricao: dto.ordemServico.descricao,
+            },
+          });
+
+          if (dto.ordemServico.itens && dto.ordemServico.itens.length > 0) {
+            await tx.ordemServicoItem.createMany({
+              data: dto.ordemServico.itens.map((item) => ({
+                ordemServicoId: ordemServico.id,
+                produtoId: item.produtoId || null,
+                descricao_servico: item.descricao_servico || null,
+                quantidade: item.quantidade,
+                valor_unitario: item.valor_unitario,
+                desconto: item.desconto || 0,
+              })),
+            });
+          }
+
+          const ordemServicoCompleta = await tx.ordemServico.findUnique({
+            where: { id: ordemServico.id },
+            include: { itens: true },
+          });
         }
+
+        return {
+          agenda,
+        };
       });
 
       return {
         status: 201,
-        message: 'Agenda criada com sucesso.',
-        data: agendaAtendimento,
+        message: 'Agenda e Ordem de Serviço criadas com sucesso.',
+        data: resultadoTransacao,
       };
     } catch (error) {
       if (
@@ -81,7 +122,7 @@ export class AgendaService {
       ) {
         return {
           status: 422,
-          message: 'Relacionamento inválido ao criar agenda.',
+          message: 'Relacionamento inválido ao criar registros no sistema.',
         };
       }
 
@@ -176,6 +217,47 @@ export class AgendaService {
             },
           },
         },
+        atendimento: {
+          select: {
+            id: true,
+            status: true,
+            clienteId: true,
+            cliente: {
+              select: {
+                id: true,
+                pessoa: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    email: true,
+                    cpf: true,
+                  },
+                },
+              },
+            },
+            ordens_servico: {
+              skip: 0,
+              take: 1,
+              orderBy: { createdAt: 'desc' },
+              select: {
+                id: true,
+                status: true,
+                valor_total: true,
+                descricao: true,
+                itens: {
+                  select: {
+                    id: true,
+                    produtoId: true,
+                    descricao_servico: true,
+                    quantidade: true,
+                    valor_unitario: true,
+                    desconto: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
       orderBy: {
         dataHora: 'asc',
@@ -186,45 +268,78 @@ export class AgendaService {
       status: 200,
       message: 'Agendas encontradas.',
       data: {
-        events: agendas.map((agenda) => ({
-          id: agenda.id,
-          empresaId: agenda.empresaId,
-          filialId: agenda.filialId,
-          pessoaId: agenda.pessoaId,
-          profissionalId: agenda.profissionalId,
-          dataHora: agenda.dataHora,
-          duracaoMin: agenda.duracaoMin,
-          status: agenda.status,
-          observacao: agenda.observacao,
-          createdAt: agenda.createdAt,
-          updatedAt: agenda.updatedAt,
-          paciente: agenda.pessoa
-            ? {
-                id: agenda.pessoa.id,
-                nome: agenda.pessoa.nome,
-                email: agenda.pessoa.email,
-                cpf: agenda.pessoa.cpf,
-              }
-            : null,
-          profissional: agenda.profissional
-            ? {
-                id: agenda.profissional.id,
-                email: agenda.profissional.email,
-                username: agenda.profissional.username,
-                pessoa: agenda.profissional.pessoa
-                  ? {
-                      id: agenda.profissional.pessoa.id,
-                      nome: agenda.profissional.pessoa.nome,
-                      tipo: agenda.profissional.pessoa.oftalmologista
-                        ? 'oftalmologista'
-                        : agenda.profissional.pessoa.optometrista
-                          ? 'optometrista'
-                          : 'nao_definido',
-                    }
-                  : null,
-              }
-            : null,
-        })),
+        events: agendas.map((agenda) => {
+          const os = agenda.atendimento?.ordens_servico?.[0] || null;
+          return {
+            id: agenda.id,
+            empresaId: agenda.empresaId,
+            filialId: agenda.filialId,
+            pessoaId: agenda.pessoaId,
+            profissionalId: agenda.profissionalId,
+            dataHora: agenda.dataHora,
+            duracaoMin: agenda.duracaoMin,
+            status: agenda.status,
+            observacao: agenda.observacao,
+            createdAt: agenda.createdAt,
+            clienteId: agenda.atendimento?.clienteId || null,
+            updatedAt: agenda.updatedAt,
+            paciente: agenda.pessoa
+              ? {
+                  id: agenda.pessoa.id,
+                  nome: agenda.pessoa.nome,
+                  email: agenda.pessoa.email,
+                  cpf: agenda.pessoa.cpf,
+                }
+              : null,
+            cliente: agenda.atendimento?.cliente
+              ? {
+                  id: agenda.atendimento.cliente.id,
+                  pessoa: agenda.atendimento.cliente.pessoa
+                    ? {
+                        id: agenda.atendimento.cliente.pessoa.id,
+                        nome: agenda.atendimento.cliente.pessoa.nome,
+                        email: agenda.atendimento.cliente.pessoa.email,
+                        cpf: agenda.atendimento.cliente.pessoa.cpf,
+                      }
+                    : null,
+                }
+              : null,
+            profissional: agenda.profissional
+              ? {
+                  id: agenda.profissional.id,
+                  email: agenda.profissional.email,
+                  username: agenda.profissional.username,
+                  pessoa: agenda.profissional.pessoa
+                    ? {
+                        id: agenda.profissional.pessoa.id,
+                        nome: agenda.profissional.pessoa.nome,
+                        tipo: agenda.profissional.pessoa.oftalmologista
+                          ? 'oftalmologista'
+                          : agenda.profissional.pessoa.optometrista
+                            ? 'optometrista'
+                            : 'nao_definido',
+                      }
+                    : null,
+                }
+              : null,
+            ordemServico: os
+              ? {
+                  id: os.id,
+                  status: os.status,
+                  valor_total: os.valor_total,
+                  descricao: os.descricao,
+                  itens: os.itens.map((item) => ({
+                    id: item.id,
+                    produtoId: item.produtoId,
+                    descricao_servico: item.descricao_servico,
+                    quantidade: item.quantidade,
+                    valor_unitario: item.valor_unitario,
+                    desconto: item.desconto,
+                  })),
+                }
+              : null,
+          };
+        }),
       },
     };
   }
@@ -305,76 +420,100 @@ export class AgendaService {
     };
   }
 
-  async update(id: string, dto: UpdateAgendaDto): Promise<ResponseJson> {
-    const agenda = await this.prisma.agenda.findUnique({
-      where: { id },
+  async update(dto: UpdateAgendaDto): Promise<ResponseJson> {
+    const agendaAtual = await this.prisma.agenda.findUnique({
+      where: { id: dto.id },
+      select: { filialId: true, empresaId: true },
     });
 
-    if (!agenda) {
+    if (!agendaAtual) {
       return { status: 422, message: 'Agenda não encontrada.' };
     }
 
-    const filialIdDestino = dto.filialId ?? agenda.filialId;
-    const pessoaIdDestino = dto.pessoaId ?? agenda.pessoaId;
-    const profissionalIdDestino = dto.profissionalId ?? agenda.profissionalId;
-
-    const filial = await this.prisma.filial.findUnique({
-      where: { id: filialIdDestino },
-      select: { id: true, empresaId: true },
-    });
-
-    if (!filial || !filial.empresaId) {
-      return {
-        status: 422,
-        message: 'Filial não encontrada para a empresa informada.',
-      };
-    }
-
-    if (pessoaIdDestino) {
-      const pessoa = await this.prisma.pessoa.findUnique({
-        where: { id: pessoaIdDestino },
-        select: { id: true, filialId: true },
-      });
-
-      if (!pessoa || pessoa.filialId !== filialIdDestino) {
-        return {
-          status: 422,
-          message: 'Paciente não encontrado para a filial informada.',
-        };
-      }
-    }
-
-    if (profissionalIdDestino) {
-      const validacaoProfissional = await this.validarProfissional(
-        profissionalIdDestino,
-        filial.empresaId,
-        filialIdDestino,
-      );
-
-      if (!validacaoProfissional.valido) {
-        return {
-          status: 422,
-          message: validacaoProfissional.mensagem,
-        };
-      }
-    }
-
     try {
-      await this.prisma.agenda.update({
-        where: { id },
-        data: {
-          empresaId: filial.empresaId,
-          filialId: filial.id,
-          pessoaId: dto.pessoaId,
-          profissionalId: dto.profissionalId,
-          dataHora: dto.dataHora ? new Date(dto.dataHora) : undefined,
-          duracaoMin: dto.duracaoMin,
-          status: dto.status,
-          observacao: dto.observacao,
-        },
+      const resultadoTransacao = await this.prisma.$transaction(async (tx) => {
+        const agenda = await tx.agenda.update({
+          where: { id: dto.id },
+          data: {
+            pessoaId: dto.pessoaId,
+            profissionalId: dto.profissionalId,
+            dataHora: dto.dataHora ? new Date(dto.dataHora) : undefined,
+            duracaoMin: dto.duracaoMin,
+            status: dto.status,
+            observacao: dto.observacao,
+          },
+        });
+
+        const atendimentoLink = await tx.atendimento.findFirst({
+          where: { agendaId: agenda.id },
+          select: { id: true },
+        });
+
+        if (atendimentoLink) {
+          await tx.atendimento.update({
+            where: { id: atendimentoLink.id },
+            data: {
+              profissionalId: dto.profissionalId,
+              dataAtendimento: dto.dataHora
+                ? new Date(dto.dataHora)
+                : undefined,
+              queixa_principal: dto.queixa_principal,
+            },
+          });
+        }
+
+        if (!dto.ordemServico) {
+          return { agenda, ordemServico: null };
+        }
+
+        const osExistente = atendimentoLink
+          ? await tx.ordemServico.findFirst({
+              where: { atendimentoId: atendimentoLink.id },
+            })
+          : null;
+
+        if (osExistente) {
+          await tx.ordemServico.update({
+            where: { id: osExistente.id },
+            data: {
+              status: dto.ordemServico.status,
+              valor_total: dto.ordemServico.valor_total,
+              descricao: dto.ordemServico.descricao,
+            },
+          });
+
+          return this.atualizarItensESeletarOS(
+            tx,
+            osExistente.id,
+            dto.ordemServico.itens,
+          );
+        }
+
+        // 4. Se a OS não existe, cria uma nova vinculada ao Atendimento correto
+        const novaOS = await tx.ordemServico.create({
+          data: {
+            empresaId: agendaAtual.empresaId,
+            filialId: agendaAtual.filialId,
+            clienteId: dto.clienteId || null,
+            atendimentoId: atendimentoLink?.id || null, // Vínculo correto pelo schema
+            status: dto.ordemServico.status,
+            valor_total: dto.ordemServico.valor_total ?? 0,
+            descricao: dto.ordemServico.descricao,
+          },
+        });
+
+        return this.atualizarItensESeletarOS(
+          tx,
+          novaOS.id,
+          dto.ordemServico.itens,
+        );
       });
 
-      return this.findById(id);
+      return {
+        status: 200,
+        message: 'Agenda e Ordem de Serviço atualizadas com sucesso.',
+        data: resultadoTransacao,
+      };
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -382,12 +521,37 @@ export class AgendaService {
       ) {
         return {
           status: 422,
-          message: 'Relacionamento inválido ao atualizar agenda.',
+          message: 'Relacionamento inválido ao atualizar registros.',
         };
       }
-
       throw error;
     }
+  }
+
+  private async atualizarItensESeletarOS(tx: any, osId: string, itens?: any[]) {
+    if (itens) {
+      await tx.ordemServicoItem.deleteMany({
+        where: { ordemServicoId: osId },
+      });
+
+      if (itens.length > 0) {
+        await tx.ordemServicoItem.createMany({
+          data: itens.map((item) => ({
+            ordemServicoId: osId,
+            produtoId: item.produtoId || null,
+            descricao_servico: item.descricao_servico || null,
+            quantidade: item.quantidade,
+            valor_unitario: item.valor_unitario,
+            desconto: item.desconto || 0,
+          })),
+        });
+      }
+    }
+
+    return tx.ordemServico.findUnique({
+      where: { id: osId },
+      include: { itens: true },
+    });
   }
 
   async deleteById(id: string): Promise<ResponseJson> {
@@ -400,8 +564,35 @@ export class AgendaService {
       return { status: 422, message: 'Agenda não encontrada.' };
     }
 
-    await this.prisma.agenda.delete({
-      where: { id },
+    await this.prisma.$transaction(async (tx) => {
+      const atendimentoLink = await tx.atendimento.findFirst({
+        where: { agendaId: agenda.id },
+        select: { id: true },
+      });
+
+      if (atendimentoLink) {
+        const osExistente = await tx.ordemServico.findFirst({
+          where: { atendimentoId: atendimentoLink.id },
+          select: { id: true },
+        });
+
+        if (osExistente) {
+          await tx.ordemServicoItem.deleteMany({
+            where: { ordemServicoId: osExistente.id },
+          });
+          await tx.ordemServico.delete({
+            where: { id: osExistente.id },
+          });
+        }
+
+        await tx.atendimento.delete({
+          where: { id: atendimentoLink.id },
+        });
+      }
+
+      await tx.agenda.delete({
+        where: { id: agenda.id },
+      });
     });
 
     return { status: 200, message: 'Agenda deletada com sucesso.' };

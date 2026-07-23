@@ -15,8 +15,8 @@ import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
 import { FuncionarioService } from './funcionario.service';
 import { FuncionarioDto, UpdateFuncionarioDto } from './dto/funcionario.dto';
-import { EnrichUserInterceptor } from 'src/interceptors/enrich-user.interceptor.ts/enrich-user.interceptor.ts';
-import { CurrentUser } from 'src/decorators/current-user.decorator.ts/current-user.decorator.ts';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
+import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
 
 @Controller('employees')
 @UseGuards(AuthGuard, AcessoGuard)

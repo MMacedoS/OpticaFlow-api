@@ -18,7 +18,7 @@ export class AtendimentoService {
       select: { id: true, empresaId: true },
     });
 
-    if (!filial || filial.empresaId !== dto.empresaId) {
+    if (!filial) {
       return {
         status: 422,
         message: 'Filial não encontrada para a empresa informada.',
@@ -27,8 +27,9 @@ export class AtendimentoService {
 
     const validacaoPaciente = await this.validarPaciente(
       dto.pacienteId,
-      dto.filialId,
+      filial.id,
     );
+
     if (!validacaoPaciente.valido) {
       return { status: 422, message: validacaoPaciente.mensagem };
     }
@@ -36,8 +37,8 @@ export class AtendimentoService {
     if (dto.profissionalId) {
       const validacaoProfissional = await this.validarProfissional(
         dto.profissionalId,
-        dto.empresaId,
-        dto.filialId,
+        filial.empresaId,
+        filial.id,
       );
 
       if (!validacaoProfissional.valido) {
@@ -48,27 +49,10 @@ export class AtendimentoService {
       }
     }
 
-    if (dto.agendaId) {
-      const validacaoAgenda = await this.validarAgenda(
-        dto.agendaId,
-        dto.empresaId,
-        dto.filialId,
-        dto.pacienteId,
-        dto.profissionalId,
-      );
-
-      if (!validacaoAgenda.valido) {
-        return {
-          status: 422,
-          message: validacaoAgenda.mensagem,
-        };
-      }
-    }
-
     if (dto.clienteId) {
       const validacaoCliente = await this.validarCliente(
         dto.clienteId,
-        dto.filialId,
+        filial.id,
         dto.convenioId,
       );
 
@@ -83,7 +67,7 @@ export class AtendimentoService {
     if (dto.convenioId) {
       const validacaoConvenio = await this.validarConvenio(
         dto.convenioId,
-        dto.empresaId,
+        filial.empresaId,
       );
 
       if (!validacaoConvenio.valido) {
@@ -97,9 +81,8 @@ export class AtendimentoService {
     try {
       const atendimento = await this.prisma.atendimento.create({
         data: {
-          empresaId: dto.empresaId,
-          filialId: dto.filialId,
-          agendaId: dto.agendaId,
+          empresaId: filial.empresaId,
+          filialId: filial.id,
           pacienteId: dto.pacienteId,
           profissionalId: dto.profissionalId,
           clienteId: dto.clienteId,
@@ -149,7 +132,7 @@ export class AtendimentoService {
     pacienteId?: string,
     dataInicio?: string,
     dataFim?: string,
-  ): Promise<AtendimentoResumo[]> {
+  ): Promise<ResponseJson> {
     const pageNumber = Math.max(1, page);
     const limitNumber = Math.max(1, limit);
     const skip = (pageNumber - 1) * limitNumber;
@@ -195,73 +178,90 @@ export class AtendimentoService {
         : {}),
     };
 
-    const atendimentos = await this.prisma.atendimento.findMany({
-      skip,
-      take: limitNumber,
-      where,
-      include: {
-        agenda: {
-          select: {
-            id: true,
-            dataHora: true,
-            status: true,
+    const [atendimentos, total] = await this.prisma.$transaction([
+      this.prisma.atendimento.findMany({
+        skip,
+        take: limitNumber,
+        where,
+        include: {
+          agenda: {
+            select: {
+              id: true,
+              dataHora: true,
+              status: true,
+            },
           },
-        },
-        paciente: {
-          select: {
-            id: true,
-            nome: true,
-            email: true,
-            cpf: true,
+          paciente: {
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+              cpf: true,
+            },
           },
-        },
-        profissional: {
-          select: {
-            id: true,
-            email: true,
-            username: true,
-            pessoa: {
-              select: {
-                id: true,
-                nome: true,
-                optometrista: {
-                  select: { id: true },
-                },
-                oftalmologista: {
-                  select: { id: true },
+          profissional: {
+            select: {
+              id: true,
+              email: true,
+              username: true,
+              pessoa: {
+                select: {
+                  id: true,
+                  nome: true,
+                  optometrista: {
+                    select: { id: true },
+                  },
+                  oftalmologista: {
+                    select: { id: true },
+                  },
                 },
               },
             },
           },
-        },
-        cliente: {
-          select: {
-            id: true,
-            numero_convenio: true,
-            pessoa: {
-              select: {
-                id: true,
-                nome: true,
-                email: true,
-                cpf: true,
+          cliente: {
+            select: {
+              id: true,
+              numero_convenio: true,
+              pessoa: {
+                select: {
+                  id: true,
+                  nome: true,
+                  email: true,
+                  cpf: true,
+                },
               },
             },
           },
-        },
-        convenio: {
-          select: {
-            id: true,
-            nome: true,
-            registro: true,
+          convenio: {
+            select: {
+              id: true,
+              nome: true,
+              registro: true,
+            },
           },
         },
-      },
-      orderBy: {
-        dataAtendimento: 'desc',
-      },
-    });
+        orderBy: {
+          dataAtendimento: 'desc',
+        },
+      }),
+      this.prisma.atendimento.count({ where }),
+    ]);
 
-    return atendimentos.map((atendimento) => this.mapResumo(atendimento));
+    return {
+      status: 200,
+      message: 'Atendimentos encontrados.',
+      data: {
+        appointments: atendimentos.map((atendimento) =>
+          this.mapResumo(atendimento),
+        ),
+        pagination: {
+          page: pageNumber,
+          limit: limitNumber,
+          total: total,
+          totalPages: Math.ceil(total / limitNumber),
+        },
+      },
+    };
   }
 
   async findById(id: string): Promise<ResponseJson> {
@@ -346,7 +346,6 @@ export class AtendimentoService {
       return { status: 422, message: 'Atendimento não encontrado.' };
     }
 
-    const empresaIdDestino = dto.empresaId ?? atendimento.empresaId;
     const filialIdDestino = dto.filialId ?? atendimento.filialId;
     const agendaIdDestino = dto.agendaId ?? atendimento.agendaId;
     const pacienteIdDestino = dto.pacienteId ?? atendimento.pacienteId;
@@ -360,7 +359,7 @@ export class AtendimentoService {
       select: { id: true, empresaId: true },
     });
 
-    if (!filial || filial.empresaId !== empresaIdDestino) {
+    if (!filial) {
       return {
         status: 422,
         message: 'Filial não encontrada para a empresa informada.',
@@ -382,7 +381,7 @@ export class AtendimentoService {
     if (profissionalIdDestino) {
       const validacaoProfissional = await this.validarProfissional(
         profissionalIdDestino,
-        empresaIdDestino,
+        filial.empresaId,
         filialIdDestino,
       );
 
@@ -397,7 +396,7 @@ export class AtendimentoService {
     if (agendaIdDestino) {
       const validacaoAgenda = await this.validarAgenda(
         agendaIdDestino,
-        empresaIdDestino,
+        filial.empresaId,
         filialIdDestino,
         pacienteIdDestino,
         profissionalIdDestino,
@@ -430,7 +429,7 @@ export class AtendimentoService {
     if (convenioIdDestino) {
       const validacaoConvenio = await this.validarConvenio(
         convenioIdDestino,
-        empresaIdDestino,
+        filial.empresaId,
       );
 
       if (!validacaoConvenio.valido) {
@@ -445,8 +444,6 @@ export class AtendimentoService {
       await this.prisma.atendimento.update({
         where: { id },
         data: {
-          empresaId: dto.empresaId,
-          filialId: dto.filialId,
           agendaId: dto.agendaId,
           pacienteId: dto.pacienteId,
           profissionalId: dto.profissionalId,

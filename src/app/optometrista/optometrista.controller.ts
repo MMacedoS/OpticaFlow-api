@@ -15,9 +15,9 @@ import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
 import { OptometristaService } from './optometrista.service';
 import { CreateDto, UpdateDto } from './dto/optometrista.dto';
-import { EnrichUserInterceptor } from 'src/interceptors/enrich-user.interceptor.ts/enrich-user.interceptor.ts';
-import { CurrentUser } from 'src/decorators/current-user.decorator.ts/current-user.decorator.ts';
 import { Status } from '@prisma/client';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
+import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
 
 @Controller('optometrists')
 @UseGuards(AuthGuard, AcessoGuard)
