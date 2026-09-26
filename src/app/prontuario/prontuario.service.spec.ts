@@ -1,29 +1,41 @@
+import {
+  ConflictException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { StatusAtendimento } from '@prisma/client';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ProntuarioService } from './prontuario.service';
 
 describe('ProntuarioService', () => {
   let service: ProntuarioService;
 
+  const escopo: EscopoUsuario = { superadmin: false, empresaId: 'empresa-1' };
+
   const prismaMock = {
+    atendimento: { findFirst: jest.fn() },
     prontuario: {
-      findUnique: jest.fn(),
-    },
-    prontuarioAnamnese: {
-      findUnique: jest.fn(),
       create: jest.fn(),
-      findMany: jest.fn(),
       count: jest.fn(),
+      findFirst: jest.fn(),
     },
-    prontuarioAcuidadeVisual: {
+    prontuarioRefracao: { upsert: jest.fn(), deleteMany: jest.fn() },
+    prontuarioDiagnostico: {
       findUnique: jest.fn(),
-      create: jest.fn(),
-      findMany: jest.fn(),
-      count: jest.fn(),
       update: jest.fn(),
-      delete: jest.fn(),
     },
-    $transaction: jest.fn(),
+  };
+
+  const atendimentoBase = {
+    id: 'atend-1',
+    empresaId: 'empresa-1',
+    filialId: 'filial-1',
+    pacienteId: 'pessoa-1',
+    profissionalId: 'usuario-1',
+    status: StatusAtendimento.em_andamento,
+    prontuario: null,
   };
 
   beforeEach(async () => {
@@ -32,100 +44,132 @@ describe('ProntuarioService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProntuarioService,
-        {
-          provide: PrismaService,
-          useValue: prismaMock,
-        },
+        { provide: PrismaService, useValue: prismaMock },
       ],
     }).compile();
 
-    service = module.get<ProntuarioService>(ProntuarioService);
+    service = module.get(ProntuarioService);
   });
 
-  it('deve retornar 422 quando o prontuario nao existir ao criar anamnese', async () => {
-    prismaMock.prontuario.findUnique.mockResolvedValue(null);
+  describe('create', () => {
+    it('abre o prontuario com os dados do atendimento', async () => {
+      prismaMock.atendimento.findFirst.mockResolvedValue(atendimentoBase);
+      prismaMock.prontuario.create.mockResolvedValue({ id: 'pront-1' });
 
-    const response = await service.createAnamnese('prontuario-inexistente', {
-      historico_pessoal: 'Teste',
+      const resposta = await service.create(
+        { atendimentoId: 'atend-1' },
+        escopo,
+      );
+
+      expect(prismaMock.atendimento.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'atend-1', empresaId: 'empresa-1' },
+        }),
+      );
+      expect(prismaMock.prontuario.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            empresaId: 'empresa-1',
+            filialId: 'filial-1',
+            pacienteId: 'pessoa-1',
+            profissionalId: 'usuario-1',
+          }),
+        }),
+      );
+      expect(resposta.status).toBe(201);
     });
 
-    expect(response).toEqual({
-      status: 422,
-      message: 'Prontuário não encontrado.',
+    it('nao encontra atendimento de outra empresa', async () => {
+      prismaMock.atendimento.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.create({ atendimentoId: 'atend-x' }, escopo),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
-    expect(prismaMock.prontuario.findUnique).toHaveBeenCalledWith({
-      where: { id: 'prontuario-inexistente' },
-      select: { id: true },
+
+    it('recusa atendimento cancelado', async () => {
+      prismaMock.atendimento.findFirst.mockResolvedValue({
+        ...atendimentoBase,
+        status: StatusAtendimento.cancelado,
+      });
+
+      await expect(
+        service.create({ atendimentoId: 'atend-1' }, escopo),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
     });
-    expect(prismaMock.prontuarioAnamnese.findUnique).not.toHaveBeenCalled();
-    expect(prismaMock.prontuarioAnamnese.create).not.toHaveBeenCalled();
+
+    it('recusa atendimento que ja tem prontuario', async () => {
+      prismaMock.atendimento.findFirst.mockResolvedValue({
+        ...atendimentoBase,
+        prontuario: { id: 'pront-1' },
+      });
+
+      await expect(
+        service.create({ atendimentoId: 'atend-1' }, escopo),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('superadmin nao filtra por empresa', async () => {
+      prismaMock.atendimento.findFirst.mockResolvedValue(atendimentoBase);
+      prismaMock.prontuario.create.mockResolvedValue({ id: 'pront-1' });
+
+      await service.create({ atendimentoId: 'atend-1' }, { superadmin: true });
+
+      expect(prismaMock.atendimento.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'atend-1' } }),
+      );
+    });
   });
 
-  it('deve retornar 422 quando ja existir anamnese para o prontuario', async () => {
-    prismaMock.prontuario.findUnique.mockResolvedValue({ id: 'prontuario-1' });
-    prismaMock.prontuarioAnamnese.findUnique.mockResolvedValue({
-      id: 'anamnese-1',
+  describe('secoes', () => {
+    it('salva a refracao com upsert', async () => {
+      prismaMock.prontuario.count.mockResolvedValue(1);
+      prismaMock.prontuarioRefracao.upsert.mockResolvedValue({ id: 'r-1' });
+
+      const dados = { od_esferico: '-1.25', oe_esferico: '-1.00' };
+      await service.salvarSecao('pront-1', 'refracao', dados, escopo);
+
+      expect(prismaMock.prontuarioRefracao.upsert).toHaveBeenCalledWith({
+        where: { prontuarioId: 'pront-1' },
+        create: { ...dados, prontuarioId: 'pront-1' },
+        update: dados,
+      });
     });
 
-    const response = await service.createAnamnese('prontuario-1', {
-      historico_pessoal: 'Teste',
+    it('nao salva secao de prontuario fora do escopo', async () => {
+      prismaMock.prontuario.count.mockResolvedValue(0);
+
+      await expect(
+        service.salvarSecao('pront-x', 'refracao', {}, escopo),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prismaMock.prontuarioRefracao.upsert).not.toHaveBeenCalled();
     });
 
-    expect(response).toEqual({
-      status: 422,
-      message: 'Anamnese já cadastrada para o prontuário informado.',
-    });
-    expect(prismaMock.prontuarioAnamnese.findUnique).toHaveBeenCalledWith({
-      where: { prontuarioId: 'prontuario-1' },
-      select: { id: true },
-    });
-    expect(prismaMock.prontuarioAnamnese.create).not.toHaveBeenCalled();
-  });
+    it('remover secao inexistente responde 404', async () => {
+      prismaMock.prontuario.count.mockResolvedValue(1);
+      prismaMock.prontuarioRefracao.deleteMany.mockResolvedValue({ count: 0 });
 
-  it('deve retornar 422 quando o prontuario nao existir ao criar acuidade visual', async () => {
-    prismaMock.prontuario.findUnique.mockResolvedValue(null);
-
-    const response = await service.createAcuidadeVisual(
-      'prontuario-inexistente',
-      {
-        od_sem_correcao: '20/20',
-      },
-    );
-
-    expect(response).toEqual({
-      status: 422,
-      message: 'Prontuário não encontrado.',
-    });
-    expect(prismaMock.prontuario.findUnique).toHaveBeenCalledWith({
-      where: { id: 'prontuario-inexistente' },
-      select: { id: true },
-    });
-    expect(
-      prismaMock.prontuarioAcuidadeVisual.findUnique,
-    ).not.toHaveBeenCalled();
-    expect(prismaMock.prontuarioAcuidadeVisual.create).not.toHaveBeenCalled();
-  });
-
-  it('deve retornar 422 quando ja existir acuidade visual para o prontuario', async () => {
-    prismaMock.prontuario.findUnique.mockResolvedValue({ id: 'prontuario-1' });
-    prismaMock.prontuarioAcuidadeVisual.findUnique.mockResolvedValue({
-      id: 'acuidade-1',
+      await expect(
+        service.removerSecao('pront-1', 'refracao', escopo),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    const response = await service.createAcuidadeVisual('prontuario-1', {
-      od_sem_correcao: '20/20',
-    });
+    it('nao atualiza item que pertence a outro prontuario', async () => {
+      prismaMock.prontuario.count.mockResolvedValue(1);
+      prismaMock.prontuarioDiagnostico.findUnique.mockResolvedValue({
+        prontuarioId: 'outro',
+      });
 
-    expect(response).toEqual({
-      status: 422,
-      message: 'Acuidade visual já cadastrada para o prontuário informado.',
+      await expect(
+        service.atualizarItem(
+          'pront-1',
+          'diagnosticos',
+          'diag-1',
+          { codigo: 'H52.1', versao: 'CID-10' },
+          escopo,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prismaMock.prontuarioDiagnostico.update).not.toHaveBeenCalled();
     });
-    expect(prismaMock.prontuarioAcuidadeVisual.findUnique).toHaveBeenCalledWith(
-      {
-        where: { prontuarioId: 'prontuario-1' },
-        select: { id: true },
-      },
-    );
-    expect(prismaMock.prontuarioAcuidadeVisual.create).not.toHaveBeenCalled();
   });
 });
