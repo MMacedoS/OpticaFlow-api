@@ -1,32 +1,20 @@
-import { Type } from 'class-transformer';
-import { IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateEstoqueDto {
-  @IsString({ message: 'O empresaId deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'O empresaId é obrigatório.' })
-  empresaId!: string;
-
+  /** Filial do estoque; se omitida, usa a filial do usuario. */
+  @IsOptional()
   @IsString({ message: 'O filialId deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'O filialId é obrigatório.' })
-  filialId!: string;
+  filialId?: string;
 
   @IsOptional()
-  @Type(() => String)
   @IsString({ message: 'O nome deve ser um texto válido.' })
-  @MinLength(2, { message: 'O nome deve ter no mínimo 2 caracteres.' })
-  nome?: string;
+  @MaxLength(100, { message: 'O nome deve ter no máximo 100 caracteres.' })
+  nome?: string | null;
 }
 
 export class UpdateEstoqueDto {
   @IsOptional()
-  @Type(() => String)
-  @IsString({ message: 'O filialId deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'O filialId não pode ser vazio.' })
-  filialId?: string;
-
-  @IsOptional()
-  @Type(() => String)
   @IsString({ message: 'O nome deve ser um texto válido.' })
-  @MinLength(2, { message: 'O nome deve ter no mínimo 2 caracteres.' })
-  nome?: string;
+  @MaxLength(100, { message: 'O nome deve ter no máximo 100 caracteres.' })
+  nome?: string | null;
 }

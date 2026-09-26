@@ -6,53 +6,49 @@ import {
   Param,
   Post,
   Put,
-  Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { Escopo } from 'src/common/escopo/escopo.decorator';
+import type { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 import { CreateEstoqueDto, UpdateEstoqueDto } from './dto/estoque.dto';
 import { EstoqueService } from './estoque.service';
 
 @Controller('estoque')
 @UseGuards(AuthGuard, AcessoGuard)
+@UseInterceptors(EnrichUserInterceptor)
 export class EstoqueController {
   constructor(private readonly estoqueService: EstoqueService) {}
 
   @Post()
-  async createEstoque(@Body() dto: CreateEstoqueDto) {
-    return this.estoqueService.create(dto);
+  async create(@Body() dto: CreateEstoqueDto, @Escopo() escopo: EscopoUsuario) {
+    return this.estoqueService.create(dto, escopo);
   }
 
-  @Get('empresa/:empresaId')
-  async getAllByEmpresa(
-    @Param('empresaId') empresaId: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-    @Query('filialId') filialId?: string,
-    @Query('search') search?: string,
-  ) {
-    return this.estoqueService.findAllByEmpresa(
-      empresaId,
-      page ? parseInt(page, 10) : 1,
-      limit ? parseInt(limit, 10) : 10,
-      filialId,
-      search ?? '',
-    );
+  @Get()
+  async findAll(@Escopo() escopo: EscopoUsuario) {
+    return this.estoqueService.findAll(escopo);
   }
 
   @Get(':id')
-  async getEstoqueById(@Param('id') id: string) {
-    return this.estoqueService.findById(id);
+  async findById(@Param('id') id: string, @Escopo() escopo: EscopoUsuario) {
+    return this.estoqueService.findById(id, escopo);
   }
 
   @Put(':id')
-  async updateEstoque(@Param('id') id: string, @Body() dto: UpdateEstoqueDto) {
-    return this.estoqueService.update(id, dto);
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateEstoqueDto,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.estoqueService.update(id, dto, escopo);
   }
 
   @Delete(':id')
-  async deleteEstoque(@Param('id') id: string) {
-    return this.estoqueService.deleteById(id);
+  async delete(@Param('id') id: string, @Escopo() escopo: EscopoUsuario) {
+    return this.estoqueService.deleteById(id, escopo);
   }
 }

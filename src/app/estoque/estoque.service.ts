@@ -1,251 +1,166 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateEstoqueDto, UpdateEstoqueDto } from './dto/estoque.dto';
-import { EstoqueResumo } from './interfaces/estoque.interface';
+
+const ESTOQUE_INCLUDE = {
+  filial: { select: { id: true, nome: true } },
+  _count: { select: { itens: true } },
+} satisfies Prisma.EstoqueInclude;
 
 @Injectable()
 export class EstoqueService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateEstoqueDto): Promise<ResponseJson> {
-    const empresa = await this.prisma.empresa.findUnique({
-      where: { id: dto.empresaId },
-      select: { id: true },
-    });
+  async create(
+    dto: CreateEstoqueDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const filialId = dto.filialId ?? escopo.filialId;
 
-    if (!empresa) {
-      return { status: 422, message: 'Empresa não encontrada.' };
+    if (!filialId) {
+      throw new BadRequestException('Informe a filial do estoque.');
     }
 
-    const filial = await this.prisma.filial.findUnique({
-      where: { id: dto.filialId },
-      select: { id: true, empresaId: true },
+    const filial = await this.prisma.filial.findFirst({
+      where: { id: filialId, ...this.filtroEmpresa(escopo) },
+      select: { id: true, empresaId: true, estoques: { select: { id: true } } },
     });
 
-    if (!filial || filial.empresaId !== dto.empresaId) {
-      return {
-        status: 422,
-        message: 'Filial não encontrada para a empresa informada.',
-      };
+    if (!filial) {
+      throw new UnprocessableEntityException('Filial não encontrada.');
     }
 
-    const estoqueExistente = await this.prisma.estoque.findUnique({
-      where: {
-        empresaId_filialId: {
-          empresaId: dto.empresaId,
-          filialId: dto.filialId,
-        },
+    if (filial.estoques.length > 0) {
+      throw new ConflictException('Esta filial já possui estoque.');
+    }
+
+    const estoque = await this.prisma.estoque.create({
+      data: {
+        empresaId: filial.empresaId,
+        filialId: filial.id,
+        nome: dto.nome,
       },
-      select: { id: true },
+      include: ESTOQUE_INCLUDE,
     });
 
-    if (estoqueExistente) {
-      return {
-        status: 400,
-        message: 'Já existe um estoque para esta filial nesta empresa.',
-      };
-    }
-
-    try {
-      const estoque = await this.prisma.estoque.create({
-        data: {
-          empresaId: dto.empresaId,
-          filialId: dto.filialId,
-          nome: dto.nome,
-        },
-      });
-
-      return {
-        status: 201,
-        message: 'Estoque criado com sucesso.',
-        data: estoque,
-      };
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        return {
-          status: 422,
-          message: 'Estoque já existe com estes dados.',
-        };
-      }
-
-      throw error;
-    }
+    return {
+      status: 201,
+      message: 'Estoque criado com sucesso.',
+      data: { ...estoque, abaixoMinimo: 0 },
+    };
   }
 
-  async findAllByEmpresa(
-    empresaId: string,
-    page: number = 1,
-    limit: number = 10,
-    filialId?: string,
-    search: string = '',
-  ): Promise<ResponseJson> {
-    const empresa = await this.prisma.empresa.findUnique({
-      where: { id: empresaId },
-      select: { id: true },
+  async findAll(escopo: EscopoUsuario): Promise<ResponseJson> {
+    const estoques = await this.prisma.estoque.findMany({
+      where: {
+        ...this.filtroEmpresa(escopo),
+        ...(escopo.filialId && { filialId: escopo.filialId }),
+      },
+      include: ESTOQUE_INCLUDE,
+      orderBy: { filial: { nome: 'asc' } },
     });
 
-    if (!empresa) {
-      return { status: 422, message: 'Empresa não encontrada.' };
-    }
-
-    const pageNumber = Math.max(1, page);
-    const limitNumber = Math.max(1, limit);
-    const skip = (pageNumber - 1) * limitNumber;
-
-    const where: Prisma.EstoqueWhereInput = {
-      empresaId,
-      ...(filialId && { filialId }),
-      ...(search
-        ? {
-            OR: [
-              { nome: { contains: search, mode: 'insensitive' } },
-              { filial: { nome: { contains: search, mode: 'insensitive' } } },
-            ],
-          }
-        : {}),
-    };
-
-    const [estoques, total] = await this.prisma.$transaction([
-      this.prisma.estoque.findMany({
-        skip,
-        take: limitNumber,
-        where,
-        include: {
-          filial: {
-            select: {
-              id: true,
-              nome: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      }),
-      this.prisma.estoque.count({ where }),
-    ]);
+    const abaixo = await this.contarAbaixoDoMinimo(estoques.map((e) => e.id));
 
     return {
       status: 200,
       message: 'Estoques listados com sucesso.',
-      data: {
-        stocks: estoques,
-        pagination: {
-          total,
-          page: pageNumber,
-          limit: limitNumber,
-          totalPages: Math.ceil(total / limitNumber),
-        },
-      },
+      data: estoques.map((estoque) => ({
+        ...estoque,
+        abaixoMinimo: abaixo.get(estoque.id) ?? 0,
+      })),
     };
   }
 
-  async findById(id: string): Promise<ResponseJson> {
-    const estoque = await this.prisma.estoque.findUnique({
-      where: { id },
-      include: {
-        filial: {
-          select: {
-            id: true,
-            nome: true,
-          },
-        },
-      },
-    });
-
-    if (!estoque) {
-      return { status: 422, message: 'Estoque não encontrado.' };
-    }
+  async findById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const estoque = await this.buscarNoEscopo(id, escopo);
+    const abaixo = await this.contarAbaixoDoMinimo([id]);
 
     return {
       status: 200,
       message: 'Estoque encontrado.',
-      data: estoque,
+      data: { ...estoque, abaixoMinimo: abaixo.get(id) ?? 0 },
     };
   }
 
-  async update(id: string, dto: UpdateEstoqueDto): Promise<ResponseJson> {
-    const estoque = await this.prisma.estoque.findUnique({
+  async update(
+    id: string,
+    dto: UpdateEstoqueDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    await this.buscarNoEscopo(id, escopo);
+
+    const estoque = await this.prisma.estoque.update({
       where: { id },
-      select: {
-        id: true,
-        empresaId: true,
-        filialId: true,
-      },
+      data: { nome: dto.nome },
+      include: ESTOQUE_INCLUDE,
     });
 
-    if (!estoque) {
-      return { status: 422, message: 'Estoque não encontrado.' };
-    }
-
-    if (dto.filialId && dto.filialId !== estoque.filialId) {
-      const filial = await this.prisma.filial.findUnique({
-        where: { id: dto.filialId },
-        select: { id: true, empresaId: true },
-      });
-
-      if (!filial || filial.empresaId !== estoque.empresaId) {
-        return {
-          status: 422,
-          message: 'Filial não encontrada para a empresa deste estoque.',
-        };
-      }
-
-      const estoqueNaFilial = await this.prisma.estoque.findUnique({
-        where: {
-          empresaId_filialId: {
-            empresaId: estoque.empresaId,
-            filialId: dto.filialId,
-          },
-        },
-        select: { id: true },
-      });
-
-      if (estoqueNaFilial && estoqueNaFilial.id !== estoque.id) {
-        return {
-          status: 400,
-          message: 'Já existe um estoque para esta filial nesta empresa.',
-        };
-      }
-    }
-
-    const estoqueAtualizado = await this.prisma.estoque.update({
-      where: { id },
-      data: {
-        filialId: dto.filialId,
-        nome: dto.nome,
-      },
-    });
-
-    return {
-      status: 200,
-      message: 'Estoque atualizado com sucesso.',
-      data: estoqueAtualizado,
-    };
+    return { status: 200, message: 'Estoque atualizado.', data: estoque };
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const estoque = await this.prisma.estoque.findUnique({
-      where: { id },
-      select: { id: true },
+  async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    await this.buscarNoEscopo(id, escopo);
+
+    const [comSaldo, movimentos] = await this.prisma.$transaction([
+      this.prisma.estoqueItem.count({
+        where: { estoqueId: id, quantidade: { not: 0 } },
+      }),
+      this.prisma.movimentoEstoque.count({ where: { estoqueId: id } }),
+    ]);
+
+    if (comSaldo > 0 || movimentos > 0) {
+      throw new ConflictException(
+        'Não é possível excluir um estoque com saldo ou movimentações.',
+      );
+    }
+
+    await this.prisma.estoque.delete({ where: { id } });
+
+    return { status: 200, message: 'Estoque excluído.' };
+  }
+
+  private filtroEmpresa(escopo: EscopoUsuario): { empresaId?: string } {
+    return escopo.empresaId ? { empresaId: escopo.empresaId } : {};
+  }
+
+  private async buscarNoEscopo(id: string, escopo: EscopoUsuario) {
+    const estoque = await this.prisma.estoque.findFirst({
+      where: { id, ...this.filtroEmpresa(escopo) },
+      include: ESTOQUE_INCLUDE,
     });
 
     if (!estoque) {
-      return { status: 422, message: 'Estoque não encontrado.' };
+      throw new NotFoundException('Estoque não encontrado.');
     }
 
-    await this.prisma.estoque.delete({
-      where: { id },
+    return estoque;
+  }
+
+  private async contarAbaixoDoMinimo(
+    estoqueIds: string[],
+  ): Promise<Map<string, number>> {
+    if (estoqueIds.length === 0) return new Map();
+
+    const grupos = await this.prisma.estoqueItem.groupBy({
+      by: ['estoqueId'],
+      where: {
+        estoqueId: { in: estoqueIds },
+        minimo: { not: null },
+        quantidade: { lte: this.prisma.estoqueItem.fields.minimo },
+      },
+      _count: { _all: true },
     });
 
-    return {
-      status: 200,
-      message: 'Estoque deletado com sucesso.',
-    };
+    return new Map(grupos.map((g) => [g.estoqueId, g._count._all]));
   }
 }

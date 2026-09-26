@@ -1,9 +1,10 @@
-export interface EstoqueItemResumo {
-  id: string;
-  estoqueId: string;
-  produtoId: string;
-  quantidade: number;
-  minimo: number | null;
-  maximo: number | null;
-  updatedAt: Date;
+import { TipoProduto } from '@prisma/client';
+
+export interface FiltroEstoqueItem {
+  page: number;
+  limit: number;
+  search: string;
+  estoqueId?: string;
+  tipo?: TipoProduto;
+  abaixoMinimo?: boolean;
 }

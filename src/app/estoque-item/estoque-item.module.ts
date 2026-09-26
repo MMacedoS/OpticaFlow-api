@@ -4,11 +4,12 @@ import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { EstoqueItemController } from './estoque-item.controller';
 import { EstoqueItemService } from './estoque-item.service';
+import { UsuarioModule } from '../usuario/usuario.module';
 
 @Module({
   providers: [EstoqueItemService, AcessoGuard],
   controllers: [EstoqueItemController],
-  imports: [forwardRef(() => AuthModule), PrismaModule],
+  imports: [forwardRef(() => AuthModule), PrismaModule, UsuarioModule],
   exports: [EstoqueItemService],
 })
 export class EstoqueItemModule {}

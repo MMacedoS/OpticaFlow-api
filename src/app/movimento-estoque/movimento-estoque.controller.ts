@@ -1,69 +1,69 @@
 import {
+  BadRequestException,
   Body,
   Controller,
-  Delete,
   Get,
   Param,
+  ParseEnumPipe,
   Post,
-  Put,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { TipoMovimentoEstoque } from '@prisma/client';
+import { Escopo } from 'src/common/escopo/escopo.decorator';
+import type { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
-import {
-  CreateMovimentoEstoqueDto,
-  UpdateMovimentoEstoqueDto,
-} from './dto/movimento-estoque.dto';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
+import { CreateMovimentoEstoqueDto } from './dto/movimento-estoque.dto';
 import { MovimentoEstoqueService } from './movimento-estoque.service';
 
+const tipoOpcionalPipe = new ParseEnumPipe(TipoMovimentoEstoque, {
+  optional: true,
+  exceptionFactory: () =>
+    new BadRequestException('O tipo deve ser entrada, saida ou ajuste.'),
+});
+
+/** Movimentacoes sao imutaveis: correcoes sao feitas com nova movimentacao. */
 @Controller('movimento-estoque')
 @UseGuards(AuthGuard, AcessoGuard)
+@UseInterceptors(EnrichUserInterceptor)
 export class MovimentoEstoqueController {
-  constructor(
-    private readonly movimentoEstoqueService: MovimentoEstoqueService,
-  ) {}
+  constructor(private readonly movimentoService: MovimentoEstoqueService) {}
 
   @Post()
-  async createMovimento(@Body() dto: CreateMovimentoEstoqueDto) {
-    return this.movimentoEstoqueService.create(dto);
+  async create(
+    @Body() dto: CreateMovimentoEstoqueDto,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.movimentoService.create(dto, escopo);
   }
 
-  @Get('empresa/:empresaId')
-  async getAllByEmpresa(
-    @Param('empresaId') empresaId: string,
+  @Get()
+  async findAll(
+    @Escopo() escopo: EscopoUsuario,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
-    @Query('tipo') tipo?: TipoMovimentoEstoque,
     @Query('estoqueId') estoqueId?: string,
     @Query('produtoId') produtoId?: string,
+    @Query('tipo', tipoOpcionalPipe) tipo?: TipoMovimentoEstoque,
+    @Query('dataInicio') dataInicio?: string,
+    @Query('dataFim') dataFim?: string,
   ) {
-    return this.movimentoEstoqueService.findAllByEmpresa(
-      empresaId,
-      page ? parseInt(page, 10) : 1,
-      limit ? parseInt(limit, 10) : 10,
-      tipo,
+    return this.movimentoService.findAll(escopo, {
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
       estoqueId,
       produtoId,
-    );
+      tipo,
+      dataInicio,
+      dataFim,
+    });
   }
 
   @Get(':id')
-  async getMovimentoById(@Param('id') id: string) {
-    return this.movimentoEstoqueService.findById(id);
-  }
-
-  @Put(':id')
-  async updateMovimento(
-    @Param('id') id: string,
-    @Body() dto: UpdateMovimentoEstoqueDto,
-  ) {
-    return this.movimentoEstoqueService.update(id, dto);
-  }
-
-  @Delete(':id')
-  async deleteMovimento(@Param('id') id: string) {
-    return this.movimentoEstoqueService.deleteById(id);
+  async findById(@Param('id') id: string, @Escopo() escopo: EscopoUsuario) {
+    return this.movimentoService.findById(id, escopo);
   }
 }

@@ -1,132 +1,155 @@
-import { Injectable } from '@nestjs/common';
-import { Prisma, TipoMovimentoEstoque } from '@prisma/client';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { Prisma, TipoMovimentoEstoque, TipoProduto } from '@prisma/client';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { CreateMovimentoEstoqueDto } from './dto/movimento-estoque.dto';
 import {
-  CreateMovimentoEstoqueDto,
-  UpdateMovimentoEstoqueDto,
-} from './dto/movimento-estoque.dto';
+  FiltroMovimentoEstoque,
+  RegistroMovimento,
+  ResultadoMovimento,
+} from './interfaces/movimento-estoque.interface';
+
+const MOVIMENTO_INCLUDE = {
+  produto: { select: { id: true, nome: true, sku: true, tipo: true } },
+  estoque: {
+    select: {
+      id: true,
+      nome: true,
+      filial: { select: { id: true, nome: true } },
+    },
+  },
+} satisfies Prisma.MovimentoEstoqueInclude;
 
 @Injectable()
 export class MovimentoEstoqueService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateMovimentoEstoqueDto): Promise<ResponseJson> {
-    if (!this.quantidadeValidaPorTipo(dto.tipo, dto.quantidade)) {
-      return {
-        status: 422,
-        message: this.mensagemQuantidadeInvalida(dto.tipo),
-      };
-    }
-
-    const validacao = await this.validarRelacionamentos(
-      dto.empresaId,
-      dto.estoqueId,
-      dto.produtoId,
-    );
-
-    if (!validacao.valido) {
-      return {
-        status: 422,
-        message: validacao.mensagem ?? 'Dados de relacionamento inválidos.',
-      };
-    }
-
-    const item = await this.obterOuCriarItemEstoque(
-      this.prisma,
-      dto.estoqueId,
-      dto.produtoId,
-    );
-
-    const saldoDestino = this.calcularSaldoDestino(
-      item.quantidade,
-      dto.tipo,
-      dto.quantidade,
-    );
-
-    if (saldoDestino < 0) {
-      return {
-        status: 422,
-        message: 'Saldo insuficiente para saída deste item.',
-      };
-    }
-
-    const movimento = await this.prisma.$transaction(async (tx) => {
-      await tx.estoqueItem.update({
-        where: { id: item.id },
-        data: { quantidade: saldoDestino },
-      });
-
-      return tx.movimentoEstoque.create({
-        data: {
-          empresaId: dto.empresaId,
-          estoqueId: dto.estoqueId,
-          produtoId: dto.produtoId,
-          tipo: dto.tipo,
-          quantidade: dto.quantidade,
-          motivo: dto.motivo,
-          referencia: dto.referencia,
-        },
-      });
+  async create(
+    dto: CreateMovimentoEstoqueDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const estoque = await this.prisma.estoque.findFirst({
+      where: { id: dto.estoqueId, ...this.filtroEmpresa(escopo) },
+      select: { id: true, empresaId: true },
     });
+
+    if (!estoque) {
+      throw new NotFoundException('Estoque não encontrado.');
+    }
+
+    const { movimento, saldo } = await this.prisma.$transaction((tx) =>
+      this.registrar(tx, {
+        empresaId: estoque.empresaId,
+        estoqueId: estoque.id,
+        produtoId: dto.produtoId,
+        tipo: dto.tipo,
+        quantidade: dto.quantidade,
+        motivo: dto.motivo,
+        referencia: dto.referencia,
+      }),
+    );
 
     return {
       status: 201,
-      message: 'Movimento de estoque criado com sucesso.',
-      data: movimento,
+      message: 'Movimentação registrada com sucesso.',
+      data: { ...movimento, saldo },
     };
   }
 
-  async findAllByEmpresa(
-    empresaId: string,
-    page: number = 1,
-    limit: number = 10,
-    tipo?: TipoMovimentoEstoque,
-    estoqueId?: string,
-    produtoId?: string,
-  ): Promise<ResponseJson> {
-    const empresa = await this.prisma.empresa.findUnique({
-      where: { id: empresaId },
-      select: { id: true },
+  /**
+   * Registra uma movimentacao e atualiza o saldo dentro da transacao
+   * informada. Usado tambem por compras, vendas e ordens de servico.
+   */
+  async registrar(
+    tx: Prisma.TransactionClient,
+    dados: RegistroMovimento,
+  ): Promise<ResultadoMovimento> {
+    await this.validarProduto(tx, dados.produtoId, dados.empresaId);
+    this.validarQuantidade(dados.tipo, dados.quantidade);
+
+    const chave = {
+      estoqueId_produtoId: {
+        estoqueId: dados.estoqueId,
+        produtoId: dados.produtoId,
+      },
+    };
+
+    const item = await tx.estoqueItem.upsert({
+      where: chave,
+      create: { estoqueId: dados.estoqueId, produtoId: dados.produtoId },
+      update: {},
+      select: { id: true, quantidade: true },
     });
 
-    if (!empresa) {
-      return { status: 422, message: 'Empresa não encontrada.' };
-    }
+    const { saldo, quantidadeMovimentada } = await this.aplicarNoSaldo(
+      tx,
+      item,
+      dados.tipo,
+      dados.quantidade,
+    );
 
-    const pageNumber = Math.max(1, page);
-    const limitNumber = Math.max(1, limit);
-    const skip = (pageNumber - 1) * limitNumber;
+    const movimento = await tx.movimentoEstoque.create({
+      data: {
+        empresaId: dados.empresaId,
+        estoqueId: dados.estoqueId,
+        produtoId: dados.produtoId,
+        tipo: dados.tipo,
+        quantidade: quantidadeMovimentada,
+        motivo: dados.motivo,
+        referencia: dados.referencia,
+      },
+    });
+
+    return { movimento, saldo };
+  }
+
+  /** Estoque da filial, criado na primeira vez que for necessario. */
+  async obterOuCriarEstoque(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+    filialId: string,
+  ): Promise<{ id: string }> {
+    return tx.estoque.upsert({
+      where: { empresaId_filialId: { empresaId, filialId } },
+      create: { empresaId, filialId, nome: 'Estoque principal' },
+      update: {},
+      select: { id: true },
+    });
+  }
+
+  async findAll(
+    escopo: EscopoUsuario,
+    filtro: FiltroMovimentoEstoque,
+  ): Promise<ResponseJson> {
+    const page = Math.max(1, filtro.page);
+    const limit = Math.max(1, filtro.limit);
 
     const where: Prisma.MovimentoEstoqueWhereInput = {
-      empresaId,
-      ...(tipo && { tipo }),
-      ...(estoqueId && { estoqueId }),
-      ...(produtoId && { produtoId }),
+      ...this.filtroEmpresa(escopo),
+      ...(escopo.filialId && { estoque: { filialId: escopo.filialId } }),
+      ...(filtro.estoqueId && { estoqueId: filtro.estoqueId }),
+      ...(filtro.produtoId && { produtoId: filtro.produtoId }),
+      ...(filtro.tipo && { tipo: filtro.tipo }),
+      ...((filtro.dataInicio || filtro.dataFim) && {
+        createdAt: {
+          ...(filtro.dataInicio && { gte: new Date(filtro.dataInicio) }),
+          ...(filtro.dataFim && { lte: new Date(filtro.dataFim) }),
+        },
+      }),
     };
 
     const [movimentos, total] = await this.prisma.$transaction([
       this.prisma.movimentoEstoque.findMany({
-        skip,
-        take: limitNumber,
+        skip: (page - 1) * limit,
+        take: limit,
         where,
-        include: {
-          estoque: {
-            select: {
-              id: true,
-              nome: true,
-              filialId: true,
-            },
-          },
-          produto: {
-            select: {
-              id: true,
-              nome: true,
-              sku: true,
-              tipo: true,
-            },
-          },
-        },
+        include: MOVIMENTO_INCLUDE,
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.movimentoEstoque.count({ where }),
@@ -134,326 +157,119 @@ export class MovimentoEstoqueService {
 
     return {
       status: 200,
-      message: 'Movimentos de estoque listados com sucesso.',
+      message: 'Movimentações listadas com sucesso.',
       data: {
-        moviments: movimentos,
+        movimentos,
         pagination: {
           total,
-          page: pageNumber,
-          limit: limitNumber,
-          totalPages: Math.ceil(total / limitNumber),
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
         },
       },
     };
   }
 
-  async findById(id: string): Promise<ResponseJson> {
-    const movimento = await this.prisma.movimentoEstoque.findUnique({
-      where: { id },
-      include: {
-        estoque: {
-          select: {
-            id: true,
-            empresaId: true,
-            filialId: true,
-            nome: true,
-          },
-        },
-        produto: {
-          select: {
-            id: true,
-            nome: true,
-            sku: true,
-            tipo: true,
-          },
-        },
-      },
+  async findById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const movimento = await this.prisma.movimentoEstoque.findFirst({
+      where: { id, ...this.filtroEmpresa(escopo) },
+      include: MOVIMENTO_INCLUDE,
     });
 
     if (!movimento) {
-      return { status: 422, message: 'Movimento de estoque não encontrado.' };
+      throw new NotFoundException('Movimentação não encontrada.');
     }
 
     return {
       status: 200,
-      message: 'Movimento de estoque encontrado.',
+      message: 'Movimentação encontrada.',
       data: movimento,
     };
   }
 
-  async update(
-    id: string,
-    dto: UpdateMovimentoEstoqueDto,
-  ): Promise<ResponseJson> {
-    const movimentoAtual = await this.prisma.movimentoEstoque.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        empresaId: true,
-        estoqueId: true,
-        produtoId: true,
-        tipo: true,
-        quantidade: true,
-      },
-    });
-
-    if (!movimentoAtual) {
-      return { status: 422, message: 'Movimento de estoque não encontrado.' };
-    }
-
-    const tipoDestino = dto.tipo ?? movimentoAtual.tipo;
-    const quantidadeDestino = dto.quantidade ?? movimentoAtual.quantidade;
-
-    if (!this.quantidadeValidaPorTipo(tipoDestino, quantidadeDestino)) {
-      return {
-        status: 422,
-        message: this.mensagemQuantidadeInvalida(tipoDestino),
-      };
-    }
-
-    const item = await this.prisma.estoqueItem.findUnique({
-      where: {
-        estoqueId_produtoId: {
-          estoqueId: movimentoAtual.estoqueId,
-          produtoId: movimentoAtual.produtoId,
-        },
-      },
-      select: { id: true, quantidade: true },
-    });
-
-    if (!item) {
-      return {
-        status: 422,
-        message: 'Item de estoque não encontrado para o movimento informado.',
-      };
-    }
-
-    const saldoSemMovimentoAtual = this.reverterDoSaldoAtual(
-      item.quantidade,
-      movimentoAtual.tipo,
-      movimentoAtual.quantidade,
-    );
-
-    if (saldoSemMovimentoAtual < 0) {
-      return {
-        status: 422,
-        message:
-          'Não foi possível atualizar o movimento porque o saldo atual está inconsistente.',
-      };
-    }
-
-    const saldoDestino = this.calcularSaldoDestino(
-      saldoSemMovimentoAtual,
-      tipoDestino,
-      quantidadeDestino,
-    );
-
-    if (saldoDestino < 0) {
-      return {
-        status: 422,
-        message: 'Saldo insuficiente para aplicar a atualização do movimento.',
-      };
-    }
-
-    const movimentoAtualizado = await this.prisma.$transaction(async (tx) => {
-      await tx.estoqueItem.update({
-        where: { id: item.id },
-        data: {
-          quantidade: saldoDestino,
-        },
-      });
-
-      return tx.movimentoEstoque.update({
-        where: { id },
-        data: {
-          tipo: dto.tipo,
-          quantidade: dto.quantidade,
-          motivo: dto.motivo,
-          referencia: dto.referencia,
-        },
-      });
-    });
-
-    return {
-      status: 200,
-      message: 'Movimento de estoque atualizado com sucesso.',
-      data: movimentoAtualizado,
-    };
+  private filtroEmpresa(escopo: EscopoUsuario): { empresaId?: string } {
+    return escopo.empresaId ? { empresaId: escopo.empresaId } : {};
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const movimento = await this.prisma.movimentoEstoque.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        estoqueId: true,
-        produtoId: true,
-        tipo: true,
-        quantidade: true,
-      },
-    });
-
-    if (!movimento) {
-      return { status: 422, message: 'Movimento de estoque não encontrado.' };
-    }
-
-    const item = await this.prisma.estoqueItem.findUnique({
-      where: {
-        estoqueId_produtoId: {
-          estoqueId: movimento.estoqueId,
-          produtoId: movimento.produtoId,
-        },
-      },
-      select: { id: true, quantidade: true },
-    });
-
-    if (!item) {
-      return {
-        status: 422,
-        message: 'Item de estoque não encontrado para estorno do movimento.',
-      };
-    }
-
-    const saldoEstornado = this.reverterDoSaldoAtual(
-      item.quantidade,
-      movimento.tipo,
-      movimento.quantidade,
-    );
-
-    if (saldoEstornado < 0) {
-      return {
-        status: 422,
-        message:
-          'Não foi possível excluir o movimento porque o saldo atual está inconsistente.',
-      };
-    }
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.estoqueItem.update({
-        where: { id: item.id },
-        data: { quantidade: saldoEstornado },
-      });
-
-      await tx.movimentoEstoque.delete({
-        where: { id },
-      });
-    });
-
-    return {
-      status: 200,
-      message: 'Movimento de estoque deletado com sucesso.',
-    };
-  }
-
-  private async validarRelacionamentos(
-    empresaId: string,
-    estoqueId: string,
+  private async validarProduto(
+    tx: Prisma.TransactionClient,
     produtoId: string,
-  ): Promise<{ valido: boolean; mensagem?: string }> {
-    const estoque = await this.prisma.estoque.findUnique({
-      where: { id: estoqueId },
-      select: { id: true, empresaId: true },
-    });
-
-    if (!estoque || estoque.empresaId !== empresaId) {
-      return {
-        valido: false,
-        mensagem: 'Estoque não encontrado para a empresa informada.',
-      };
-    }
-
-    const produto = await this.prisma.produto.findUnique({
+    empresaId: string,
+  ): Promise<void> {
+    const produto = await tx.produto.findUnique({
       where: { id: produtoId },
-      select: { id: true, empresaId: true },
+      select: { empresaId: true, tipo: true },
     });
 
     if (!produto || produto.empresaId !== empresaId) {
+      throw new NotFoundException('Produto não encontrado nesta empresa.');
+    }
+
+    if (produto.tipo === TipoProduto.servico) {
+      throw new UnprocessableEntityException(
+        'Serviços não têm controle de estoque.',
+      );
+    }
+  }
+
+  private validarQuantidade(tipo: TipoMovimentoEstoque, quantidade: number) {
+    if (tipo !== TipoMovimentoEstoque.ajuste && quantidade <= 0) {
+      throw new UnprocessableEntityException(
+        'A quantidade de entrada ou saída deve ser maior que zero.',
+      );
+    }
+  }
+
+  /** Aplica a movimentacao no saldo; retorna o novo saldo e o delta. */
+  private async aplicarNoSaldo(
+    tx: Prisma.TransactionClient,
+    item: { id: string; quantidade: number },
+    tipo: TipoMovimentoEstoque,
+    quantidade: number,
+  ): Promise<{ saldo: number; quantidadeMovimentada: number }> {
+    if (tipo === TipoMovimentoEstoque.entrada) {
+      const atualizado = await tx.estoqueItem.update({
+        where: { id: item.id },
+        data: { quantidade: { increment: quantidade } },
+      });
       return {
-        valido: false,
-        mensagem: 'Produto não encontrado para a empresa informada.',
+        saldo: atualizado.quantidade,
+        quantidadeMovimentada: quantidade,
       };
     }
 
-    return { valido: true };
-  }
+    if (tipo === TipoMovimentoEstoque.saida) {
+      // Decremento condicional: evita saldo negativo mesmo com concorrencia.
+      const { count } = await tx.estoqueItem.updateMany({
+        where: { id: item.id, quantidade: { gte: quantidade } },
+        data: { quantidade: { decrement: quantidade } },
+      });
 
-  private async obterOuCriarItemEstoque(
-    tx: PrismaService | Prisma.TransactionClient,
-    estoqueId: string,
-    produtoId: string,
-  ) {
-    const item = await tx.estoqueItem.findUnique({
-      where: {
-        estoqueId_produtoId: {
-          estoqueId,
-          produtoId,
-        },
-      },
-      select: { id: true, quantidade: true },
+      if (count === 0) {
+        throw new ConflictException(
+          `Saldo insuficiente: disponível ${item.quantidade}, solicitado ${quantidade}.`,
+        );
+      }
+
+      return {
+        saldo: item.quantidade - quantidade,
+        quantidadeMovimentada: quantidade,
+      };
+    }
+
+    const diferenca = quantidade - item.quantidade;
+
+    if (diferenca === 0) {
+      throw new UnprocessableEntityException(
+        'A quantidade contada é igual ao saldo atual; nada a ajustar.',
+      );
+    }
+
+    await tx.estoqueItem.update({
+      where: { id: item.id },
+      data: { quantidade },
     });
 
-    if (item) {
-      return item;
-    }
-
-    return tx.estoqueItem.create({
-      data: {
-        estoqueId,
-        produtoId,
-        quantidade: 0,
-      },
-      select: { id: true, quantidade: true },
-    });
-  }
-
-  private quantidadeValidaPorTipo(
-    tipo: TipoMovimentoEstoque,
-    quantidade: number,
-  ): boolean {
-    if (tipo === TipoMovimentoEstoque.ajuste) {
-      return quantidade !== 0;
-    }
-
-    return quantidade > 0;
-  }
-
-  private mensagemQuantidadeInvalida(tipo: TipoMovimentoEstoque): string {
-    if (tipo === TipoMovimentoEstoque.ajuste) {
-      return 'Para ajuste, a quantidade deve ser diferente de zero.';
-    }
-
-    return 'Para entrada e saída, a quantidade deve ser maior que zero.';
-  }
-
-  private calcularSaldoDestino(
-    saldoAtual: number,
-    tipo: TipoMovimentoEstoque,
-    quantidade: number,
-  ): number {
-    if (tipo === TipoMovimentoEstoque.entrada) {
-      return saldoAtual + quantidade;
-    }
-
-    if (tipo === TipoMovimentoEstoque.saida) {
-      return saldoAtual - quantidade;
-    }
-
-    return saldoAtual + quantidade;
-  }
-
-  private reverterDoSaldoAtual(
-    saldoAtual: number,
-    tipo: TipoMovimentoEstoque,
-    quantidade: number,
-  ): number {
-    if (tipo === TipoMovimentoEstoque.entrada) {
-      return saldoAtual - quantidade;
-    }
-
-    if (tipo === TipoMovimentoEstoque.saida) {
-      return saldoAtual + quantidade;
-    }
-
-    return saldoAtual - quantidade;
+    return { saldo: quantidade, quantidadeMovimentada: diferenca };
   }
 }

@@ -1,3 +1,4 @@
+import { TipoMovimentoEstoque } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsEnum,
@@ -5,14 +6,11 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
+  Min,
 } from 'class-validator';
-import { TipoMovimentoEstoque } from '@prisma/client';
 
 export class CreateMovimentoEstoqueDto {
-  @IsString({ message: 'O empresaId deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'O empresaId é obrigatório.' })
-  empresaId!: string;
-
   @IsString({ message: 'O estoqueId deve ser um texto válido.' })
   @IsNotEmpty({ message: 'O estoqueId é obrigatório.' })
   estoqueId!: string;
@@ -22,40 +20,28 @@ export class CreateMovimentoEstoqueDto {
   produtoId!: string;
 
   @IsEnum(TipoMovimentoEstoque, {
-    message: 'O tipo de movimento informado não é válido.',
+    message: 'O tipo deve ser entrada, saida ou ajuste.',
   })
   tipo!: TipoMovimentoEstoque;
 
+  /**
+   * Entrada/saida: quantidade movimentada (> 0).
+   * Ajuste: quantidade contada no inventario (novo saldo, >= 0).
+   */
   @Type(() => Number)
   @IsNumber({}, { message: 'A quantidade deve ser um número válido.' })
+  @Min(0, { message: 'A quantidade não pode ser negativa.' })
   quantidade!: number;
 
   @IsOptional()
   @IsString({ message: 'O motivo deve ser um texto válido.' })
+  @MaxLength(255, { message: 'O motivo deve ter no máximo 255 caracteres.' })
   motivo?: string;
 
   @IsOptional()
   @IsString({ message: 'A referência deve ser um texto válido.' })
-  referencia?: string;
-}
-
-export class UpdateMovimentoEstoqueDto {
-  @IsOptional()
-  @IsEnum(TipoMovimentoEstoque, {
-    message: 'O tipo de movimento informado não é válido.',
+  @MaxLength(100, {
+    message: 'A referência deve ter no máximo 100 caracteres.',
   })
-  tipo?: TipoMovimentoEstoque;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber({}, { message: 'A quantidade deve ser um número válido.' })
-  quantidade?: number;
-
-  @IsOptional()
-  @IsString({ message: 'O motivo deve ser um texto válido.' })
-  motivo?: string;
-
-  @IsOptional()
-  @IsString({ message: 'A referência deve ser um texto válido.' })
   referencia?: string;
 }
