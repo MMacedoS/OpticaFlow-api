@@ -89,14 +89,24 @@ export class AuthService {
       data: {
         access_token: (await access).access_token,
         refresh_token: (await access).refresh_token,
-        usuario: {
-          id: usuario.id,
-          email: usuario.email,
-          username: usuario.username,
-          pessoaId: usuario.pessoaId,
-        },
+        usuario: await this.montarUsuarioSessao(usuario.id),
         atribuicoes: atribuicoes || [],
       },
+    };
+  }
+
+  /** Dados do usuario enviados na sessao (inclui empresa, filial e superadmin). */
+  private async montarUsuarioSessao(usuarioId: string) {
+    const usuario = await this.usuarioService.findPessoaByUserId(usuarioId);
+
+    return {
+      id: usuario.id,
+      email: usuario.email,
+      username: usuario.username,
+      pessoaId: usuario.pessoaId,
+      empresaId: usuario.empresaId ?? null,
+      filialId: usuario.pessoa?.filialId ?? null,
+      superadmin: Boolean(usuario.superadmin),
     };
   }
 
@@ -184,12 +194,7 @@ export class AuthService {
         data: {
           access_token: access.access_token,
           refresh_token: access.refresh_token,
-          usuario: {
-            id: usuario.id,
-            email: usuario.email,
-            username: usuario.username,
-            pessoaId: usuario.pessoaId,
-          },
+          usuario: await this.montarUsuarioSessao(usuario.id),
           atribuicoes: atribuicoes || [],
         },
       };

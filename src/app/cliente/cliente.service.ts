@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ClienteDto, updateClienteDto } from './cliente.dto/cliente.dto';
 import { ResponseJson } from 'src/interface/response/response.interface';
-import { Status, Usuario } from '@prisma/client';
+import { Prisma, Status, Usuario } from '@prisma/client';
 import { FilialService } from 'src/app/filial/filial.service';
 
 @Injectable()
@@ -116,7 +116,7 @@ export class ClienteService {
   }
 
   async findAllByFilialId(
-    filialId: string,
+    filtroPessoa: Prisma.PessoaWhereInput,
     criteria: { page: number; limit: number; search?: string },
   ): Promise<ResponseJson> {
     const pageNumber = Math.max(1, criteria.page ?? 1);
@@ -140,7 +140,7 @@ export class ClienteService {
       this.prisma.cliente.findMany({
         where: {
           pessoa: {
-            filialId,
+            ...filtroPessoa,
             ...searchFilter,
           },
         },
@@ -154,7 +154,7 @@ export class ClienteService {
       this.prisma.cliente.count({
         where: {
           pessoa: {
-            filialId,
+            ...filtroPessoa,
             ...searchFilter,
           },
         },

@@ -11,6 +11,10 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { Escopo } from 'src/common/escopo/escopo.decorator';
+import type { EscopoUsuario } from 'src/common/escopo/escopo.interface';
+import { resolverFiltroFilial } from 'src/common/escopo/filtro-filial';
+import { PrismaService } from 'src/prisma/prisma.service';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
 import { OftalmologistaService } from './oftalmologista.service';
@@ -23,7 +27,10 @@ import { Status } from '@prisma/client';
 @UseGuards(AuthGuard, AcessoGuard)
 @UseInterceptors(EnrichUserInterceptor)
 export class OftalmologistaController {
-  constructor(private readonly oftalmologistaService: OftalmologistaService) {}
+  constructor(
+    private readonly oftalmologistaService: OftalmologistaService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Post()
   async createOftalmologista(
@@ -40,17 +47,20 @@ export class OftalmologistaController {
 
   @Get()
   async getAllByFilial(
+    @Escopo() escopo: EscopoUsuario,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
-    @CurrentUser() user?: any,
+    @Query('filialId') filialId?: string,
   ) {
-    if (!user || !user.pessoa || !user.pessoa.filialId) {
-      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
-    }
+    const filtroPessoa = await resolverFiltroFilial(
+      this.prisma,
+      escopo,
+      filialId,
+    );
 
     const oftalmologistas = await this.oftalmologistaService.findAllByFilial(
-      user.pessoa.filialId,
+      filtroPessoa,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 10,
       search ?? '',

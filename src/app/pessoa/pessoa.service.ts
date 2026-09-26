@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Status } from '@prisma/client';
+import { Prisma, Status } from '@prisma/client';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PessoaDto } from './dto/pessoa';
@@ -21,7 +21,7 @@ export class PessoaService {
   }
 
   async findAllByFilial(
-    filialId: string,
+    filtroPessoa: Prisma.PessoaWhereInput,
     page: number,
     limit: number,
     search: string,
@@ -31,7 +31,7 @@ export class PessoaService {
     const [pessoas, total] = await this.prisma.$transaction([
       this.prisma.pessoa.findMany({
         where: {
-          filialId: filialId,
+          ...filtroPessoa,
           OR: [
             { nome: { contains: search, mode: 'insensitive' } },
             { email: { contains: search, mode: 'insensitive' } },
@@ -54,7 +54,7 @@ export class PessoaService {
       }),
       this.prisma.pessoa.count({
         where: {
-          filialId: filialId,
+          ...filtroPessoa,
           OR: [
             { nome: { contains: search, mode: 'insensitive' } },
             { email: { contains: search, mode: 'insensitive' } },

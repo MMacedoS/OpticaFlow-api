@@ -11,6 +11,10 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { Escopo } from 'src/common/escopo/escopo.decorator';
+import type { EscopoUsuario } from 'src/common/escopo/escopo.interface';
+import { resolverFiltroFilial } from 'src/common/escopo/filtro-filial';
+import { PrismaService } from 'src/prisma/prisma.service';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 import { PessoaService } from './pessoa.service';
@@ -23,20 +27,27 @@ import { Status } from '@prisma/client';
 @UseGuards(AuthGuard, AcessoGuard)
 @UseInterceptors(EnrichUserInterceptor)
 export class PessoaController {
-  constructor(private readonly pessoaService: PessoaService) {}
+  constructor(
+    private readonly pessoaService: PessoaService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Get()
   async getAllByFilial(
+    @Escopo() escopo: EscopoUsuario,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
-    @CurrentUser() user?: any,
+    @Query('filialId') filialId?: string,
   ) {
-    if (!user || !user.pessoa || !user.pessoa.filialId) {
-      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
-    }
+    const filtroPessoa = await resolverFiltroFilial(
+      this.prisma,
+      escopo,
+      filialId,
+    );
+
     const pessoas = await this.pessoaService.findAllByFilial(
-      user.pessoa.filialId,
+      filtroPessoa,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 10,
       search ?? '',

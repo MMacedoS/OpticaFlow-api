@@ -122,7 +122,7 @@ export class OftalmologistaService {
   }
 
   async findAllByFilial(
-    filialId: string,
+    filtroPessoa: Prisma.PessoaWhereInput,
     page: number = 1,
     limit: number = 10,
     search: string = '',
@@ -157,7 +157,7 @@ export class OftalmologistaService {
         take: limitNumber,
         where: {
           pessoa: {
-            filialId,
+            ...filtroPessoa,
             ...searchFilter,
           },
         },
@@ -196,7 +196,7 @@ export class OftalmologistaService {
       this.prisma.oftalmologista.count({
         where: {
           pessoa: {
-            filialId,
+            ...filtroPessoa,
             ...searchFilter,
           },
         },
