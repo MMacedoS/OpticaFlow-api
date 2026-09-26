@@ -119,7 +119,7 @@ export class UpdateProdutoDto {
   @IsNumber()
   @Min(0)
   @IsOptional()
-  margem_lucro?: number = 0;
+  margem_lucro?: number;
 
   @Type(() => Number)
   @IsNumber({}, { message: 'O preço de venda deve ser um número válido.' })
@@ -128,13 +128,13 @@ export class UpdateProdutoDto {
 
   @IsEnum(Status, { message: 'O status deve ser ativo ou inativo.' })
   @IsOptional()
-  ativo?: Status = Status.ativo;
+  ativo?: Status;
 
   @Type(() => Number)
   @IsNumber()
   @Min(0)
   @IsOptional()
-  quantidade_inicial?: number = 0;
+  quantidade_inicial?: number;
 
   @Type(() => Number)
   @IsNumber()
