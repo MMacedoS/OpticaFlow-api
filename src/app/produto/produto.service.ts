@@ -46,7 +46,7 @@ export class ProdutoService {
     const empresaId = await this.resolverEmpresa(dto.empresaId, escopo);
     await this.garantirSkuDisponivel(empresaId, dto.sku);
 
-    const filialId = dto.filialId ?? escopo.filialId;
+    const filialId = escopo.filialId ?? dto.filialId;
     const controlaEstoque = dto.tipo !== TipoProduto.servico && !!filialId;
 
     if (!controlaEstoque && (dto.quantidade_inicial ?? 0) > 0) {

@@ -24,7 +24,7 @@ export class EstoqueService {
     dto: CreateEstoqueDto,
     escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
-    const filialId = dto.filialId ?? escopo.filialId;
+    const filialId = escopo.filialId ?? dto.filialId;
 
     if (!filialId) {
       throw new BadRequestException('Informe a filial do estoque.');

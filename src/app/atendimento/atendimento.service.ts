@@ -61,7 +61,7 @@ export class AtendimentoService {
     escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
     const filial = await this.resolverFilial(
-      dto.filialId ?? escopo.filialId,
+      escopo.filialId ?? dto.filialId,
       escopo,
     );
 
@@ -246,7 +246,9 @@ export class AtendimentoService {
     const convenioIdDestino = dto.convenioId ?? atendimento.convenioId;
 
     const filial = await this.resolverFilial(
-      dto.filialId ?? atendimento.filialId,
+      escopo.filialId
+        ? atendimento.filialId
+        : (dto.filialId ?? atendimento.filialId),
       escopo,
     );
 
