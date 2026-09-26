@@ -24,7 +24,7 @@ import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.
 import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
 import { Status } from '@prisma/client';
 
-@Controller('products')
+@Controller('produto')
 @UseGuards(AuthGuard, AcessoGuard)
 @UseInterceptors(EnrichUserInterceptor)
 export class ProdutoController {

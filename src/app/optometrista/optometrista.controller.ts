@@ -19,7 +19,7 @@ import { Status } from '@prisma/client';
 import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
 
-@Controller('optometrists')
+@Controller('optometrista')
 @UseGuards(AuthGuard, AcessoGuard)
 @UseInterceptors(EnrichUserInterceptor)
 export class OptometristaController {

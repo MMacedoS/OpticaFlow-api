@@ -18,7 +18,7 @@ import { FuncionarioDto, UpdateFuncionarioDto } from './dto/funcionario.dto';
 import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
 
-@Controller('employees')
+@Controller('funcionario')
 @UseGuards(AuthGuard, AcessoGuard)
 @UseInterceptors(EnrichUserInterceptor)
 export class FuncionarioController {

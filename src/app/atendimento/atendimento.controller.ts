@@ -22,7 +22,7 @@ import { AtendimentoService } from './atendimento.service';
 import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
 import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 
-@Controller('Appointments')
+@Controller('atendimento')
 @UseGuards(AuthGuard, AcessoGuard)
 @UseInterceptors(EnrichUserInterceptor)
 export class AtendimentoController {

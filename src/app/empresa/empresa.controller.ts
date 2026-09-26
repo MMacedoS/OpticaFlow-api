@@ -16,7 +16,7 @@ import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { CreateEmpresaDto } from './dto/createEmpresa.dto';
 import { UpdateEmpresaDto } from './dto/updateEmpresa.dto';
 
-@Controller('empresas')
+@Controller('empresa')
 @UseGuards(AuthGuard, AcessoGuard)
 export class EmpresaController {
   constructor(private readonly empresaService: EmpresaService) {}

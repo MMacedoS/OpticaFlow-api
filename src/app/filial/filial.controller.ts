@@ -23,7 +23,7 @@ import { UsuarioService } from 'src/app/usuario/usuario.service';
 import { UpdateFilialDto } from './dto/update.dto';
 import { Status } from '@prisma/client';
 
-@Controller('filiais')
+@Controller('filial')
 @UseGuards(AuthGuard, AcessoGuard)
 export class FilialController {
   constructor(

@@ -19,7 +19,7 @@ import { CreateDto, UpdateDto } from './dto/oftalmologista.dto';
 import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
 import { Status } from '@prisma/client';
 
-@Controller('ophthalmologists')
+@Controller('oftalmologista')
 @UseGuards(AuthGuard, AcessoGuard)
 @UseInterceptors(EnrichUserInterceptor)
 export class OftalmologistaController {

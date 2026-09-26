@@ -17,7 +17,7 @@ import { CreateConvenioDto, UpdateConvenioDto } from './dto/convenio.dto';
 import { ConvenioService } from './convenio.service';
 import { UsuarioService } from 'src/app/usuario/usuario.service';
 
-@Controller('agreements')
+@Controller('convenio')
 @UseGuards(AuthGuard, AcessoGuard)
 export class ConvenioController {
   constructor(

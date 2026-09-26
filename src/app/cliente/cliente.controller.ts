@@ -18,7 +18,7 @@ import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.
 import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 import { ClienteDto, updateClienteDto } from './cliente.dto/cliente.dto';
 
-@Controller('customers')
+@Controller('cliente')
 @UseGuards(AuthGuard, AcessoGuard)
 @UseInterceptors(EnrichUserInterceptor)
 export class ClienteController {

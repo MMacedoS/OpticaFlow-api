@@ -19,7 +19,7 @@ import { PessoaDto } from './dto/pessoa';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
 import { Status } from '@prisma/client';
 
-@Controller('peoples')
+@Controller('pessoa')
 @UseGuards(AuthGuard, AcessoGuard)
 @UseInterceptors(EnrichUserInterceptor)
 export class PessoaController {

@@ -25,7 +25,7 @@ import { OrdemServicoService } from './ordem-servico.service';
 import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
 import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 
-@Controller('service-orders')
+@Controller('ordem-servico')
 @UseGuards(AuthGuard, AcessoGuard)
 @UseInterceptors(EnrichUserInterceptor)
 export class OrdemServicoController {
