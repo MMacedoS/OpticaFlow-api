@@ -8,226 +8,139 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-export class CreateReceitaOculosDto {
+const TEXTO = (campo: string) => ({
+  message: `${campo} deve ser um texto válido.`,
+});
+
+export class ReceitaOculosDto {
   @IsOptional()
-  @IsString({ message: 'od_esferico deve ser um texto válido.' })
-  od_esferico?: string;
+  @IsString(TEXTO('od_esferico'))
+  od_esferico?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'od_cilindrico deve ser um texto válido.' })
-  od_cilindrico?: string;
+  @IsString(TEXTO('od_cilindrico'))
+  od_cilindrico?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'od_eixo deve ser um texto válido.' })
-  od_eixo?: string;
+  @IsString(TEXTO('od_eixo'))
+  od_eixo?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'oe_esferico deve ser um texto válido.' })
-  oe_esferico?: string;
+  @IsString(TEXTO('oe_esferico'))
+  oe_esferico?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'oe_cilindrico deve ser um texto válido.' })
-  oe_cilindrico?: string;
+  @IsString(TEXTO('oe_cilindrico'))
+  oe_cilindrico?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'oe_eixo deve ser um texto válido.' })
-  oe_eixo?: string;
+  @IsString(TEXTO('oe_eixo'))
+  oe_eixo?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'dp deve ser um texto válido.' })
-  dp?: string;
+  @IsString(TEXTO('dp'))
+  dp?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'adicao deve ser um texto válido.' })
-  adicao?: string;
+  @IsString(TEXTO('adicao'))
+  adicao?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'observacoes deve ser um texto válido.' })
-  observacoes?: string;
+  @IsString(TEXTO('observacoes'))
+  observacoes?: string | null;
 }
 
-export class UpdateReceitaOculosDto extends CreateReceitaOculosDto {}
-
-export class CreateReceitaLenteContatoDto {
+export class ReceitaLenteContatoDto {
   @IsOptional()
-  @IsString({ message: 'od_curva_base deve ser um texto válido.' })
-  od_curva_base?: string;
+  @IsString(TEXTO('od_curva_base'))
+  od_curva_base?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'od_diametro deve ser um texto válido.' })
-  od_diametro?: string;
+  @IsString(TEXTO('od_diametro'))
+  od_diametro?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'od_grau deve ser um texto válido.' })
-  od_grau?: string;
+  @IsString(TEXTO('od_grau'))
+  od_grau?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'oe_curva_base deve ser um texto válido.' })
-  oe_curva_base?: string;
+  @IsString(TEXTO('oe_curva_base'))
+  oe_curva_base?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'oe_diametro deve ser um texto válido.' })
-  oe_diametro?: string;
+  @IsString(TEXTO('oe_diametro'))
+  oe_diametro?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'oe_grau deve ser um texto válido.' })
-  oe_grau?: string;
+  @IsString(TEXTO('oe_grau'))
+  oe_grau?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'material deve ser um texto válido.' })
-  material?: string;
+  @IsString(TEXTO('material'))
+  material?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'marca deve ser um texto válido.' })
-  marca?: string;
+  @IsString(TEXTO('marca'))
+  marca?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'observacoes deve ser um texto válido.' })
-  observacoes?: string;
+  @IsString(TEXTO('observacoes'))
+  observacoes?: string | null;
 }
 
-export class UpdateReceitaLenteContatoDto extends CreateReceitaLenteContatoDto {}
-
-export class CreateReceitaMedicamentoDto {
-  @IsString({ message: 'medicamento deve ser um texto válido.' })
+export class ReceitaMedicamentoDto {
+  @IsString(TEXTO('medicamento'))
   @IsNotEmpty({ message: 'medicamento é obrigatório.' })
   medicamento!: string;
 
   @IsOptional()
-  @IsString({ message: 'dosagem deve ser um texto válido.' })
-  dosagem?: string;
+  @IsString(TEXTO('dosagem'))
+  dosagem?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'posologia deve ser um texto válido.' })
-  posologia?: string;
+  @IsString(TEXTO('posologia'))
+  posologia?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'duracao deve ser um texto válido.' })
-  duracao?: string;
+  @IsString(TEXTO('duracao'))
+  duracao?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'observacoes deve ser um texto válido.' })
-  observacoes?: string;
+  @IsString(TEXTO('observacoes'))
+  observacoes?: string | null;
 }
 
-export class UpdateReceitaMedicamentoDto {
+class ReceitaDetalhesDto {
   @IsOptional()
-  @IsString({ message: 'medicamento deve ser um texto válido.' })
-  medicamento?: string;
+  @IsString(TEXTO('observacoes'))
+  observacoes?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'dosagem deve ser um texto válido.' })
-  dosagem?: string;
+  @ValidateNested()
+  @Type(() => ReceitaOculosDto)
+  oculos?: ReceitaOculosDto;
 
   @IsOptional()
-  @IsString({ message: 'posologia deve ser um texto válido.' })
-  posologia?: string;
+  @ValidateNested()
+  @Type(() => ReceitaLenteContatoDto)
+  lente_contato?: ReceitaLenteContatoDto;
 
   @IsOptional()
-  @IsString({ message: 'duracao deve ser um texto válido.' })
-  duracao?: string;
-
-  @IsOptional()
-  @IsString({ message: 'observacoes deve ser um texto válido.' })
-  observacoes?: string;
+  @ValidateNested()
+  @Type(() => ReceitaMedicamentoDto)
+  medicamento?: ReceitaMedicamentoDto;
 }
 
-export class CreateReceitaDto {
-  @IsString({ message: 'empresaId deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'empresaId é obrigatório.' })
-  empresaId!: string;
+export class CreateReceitaDto extends ReceitaDetalhesDto {
+  @IsString(TEXTO('prontuarioId'))
+  @IsNotEmpty({ message: 'prontuarioId é obrigatório.' })
+  prontuarioId!: string;
 
-  @IsString({ message: 'filialId deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'filialId é obrigatório.' })
-  filialId!: string;
-
-  @IsOptional()
-  @IsString({ message: 'atendimentoId deve ser um texto válido.' })
-  atendimentoId?: string;
-
-  @IsOptional()
-  @IsString({ message: 'prontuarioId deve ser um texto válido.' })
-  prontuarioId?: string;
-
-  @IsString({ message: 'pacienteId deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'pacienteId é obrigatório.' })
-  pacienteId!: string;
-
-  @IsOptional()
-  @IsString({ message: 'profissionalId deve ser um texto válido.' })
-  profissionalId?: string;
-
-  @IsEnum(TipoReceita, { message: 'tipo de receita inválido.' })
+  @IsEnum(TipoReceita, {
+    message: 'tipo deve ser oculos, lente_contato ou medicamento.',
+  })
   tipo!: TipoReceita;
-
-  @IsOptional()
-  @IsString({ message: 'observacoes deve ser um texto válido.' })
-  observacoes?: string;
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => CreateReceitaOculosDto)
-  oculos?: CreateReceitaOculosDto;
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => CreateReceitaLenteContatoDto)
-  lente_contato?: CreateReceitaLenteContatoDto;
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => CreateReceitaMedicamentoDto)
-  medicamento?: CreateReceitaMedicamentoDto;
 }
 
-export class UpdateReceitaDto {
-  @IsOptional()
-  @IsString({ message: 'empresaId deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'empresaId não pode ser vazio.' })
-  empresaId?: string;
-
-  @IsOptional()
-  @IsString({ message: 'filialId deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'filialId não pode ser vazio.' })
-  filialId?: string;
-
-  @IsOptional()
-  @IsString({ message: 'atendimentoId deve ser um texto válido.' })
-  atendimentoId?: string;
-
-  @IsOptional()
-  @IsString({ message: 'prontuarioId deve ser um texto válido.' })
-  prontuarioId?: string;
-
-  @IsOptional()
-  @IsString({ message: 'pacienteId deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'pacienteId não pode ser vazio.' })
-  pacienteId?: string;
-
-  @IsOptional()
-  @IsString({ message: 'profissionalId deve ser um texto válido.' })
-  profissionalId?: string;
-
-  @IsOptional()
-  @IsEnum(TipoReceita, { message: 'tipo de receita inválido.' })
-  tipo?: TipoReceita;
-
-  @IsOptional()
-  @IsString({ message: 'observacoes deve ser um texto válido.' })
-  observacoes?: string;
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => UpdateReceitaOculosDto)
-  oculos?: UpdateReceitaOculosDto;
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => UpdateReceitaLenteContatoDto)
-  lente_contato?: UpdateReceitaLenteContatoDto;
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => UpdateReceitaMedicamentoDto)
-  medicamento?: UpdateReceitaMedicamentoDto;
-}
+/** O tipo da receita nao muda; envie apenas o detalhe do tipo dela. */
+export class UpdateReceitaDto extends ReceitaDetalhesDto {}
