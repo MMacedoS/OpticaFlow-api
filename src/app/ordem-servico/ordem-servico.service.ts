@@ -27,7 +27,6 @@ export class OrdemServicoService {
     escopo: EscopoOrdemServico,
   ): Promise<ResponseJson> {
     const filialId = dto.filialId ?? escopo.filialId;
-    const { empresaId } = escopo;
 
     if (!filialId) {
       throw new BadRequestException('Informe a filial da ordem de servico.');
@@ -38,11 +37,16 @@ export class OrdemServicoService {
       select: { id: true, empresaId: true },
     });
 
-    if (!filial || filial.empresaId !== empresaId) {
+    if (
+      !filial ||
+      (escopo.empresaId && filial.empresaId !== escopo.empresaId)
+    ) {
       throw new UnprocessableEntityException(
         'Filial nao encontrada para a empresa informada.',
       );
     }
+
+    const { empresaId } = filial;
 
     if (dto.clienteId) {
       await this.validarClienteDaFilial(dto.clienteId, filialId);
@@ -131,7 +135,7 @@ export class OrdemServicoService {
         return ordem;
       });
 
-      return this.findById(ordemServico.id, empresaId);
+      return this.findById(ordemServico.id, { empresaId });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -171,7 +175,7 @@ export class OrdemServicoService {
     const skip = (pageNumber - 1) * limitNumber;
 
     const where: Prisma.OrdemServicoWhereInput = {
-      empresaId,
+      ...(empresaId && { empresaId }),
       ...(filialId && { filialId }),
       ...(clienteId && { clienteId }),
       ...(atendimentoId && { atendimentoId }),
@@ -315,7 +319,10 @@ export class OrdemServicoService {
     };
   }
 
-  async findById(id: string, empresaId: string): Promise<ResponseJson> {
+  async findById(
+    id: string,
+    { empresaId }: EscopoOrdemServico,
+  ): Promise<ResponseJson> {
     const ordemServico = await this.prisma.ordemServico.findFirst({
       where: { id, empresaId },
       include: {
@@ -402,10 +409,10 @@ export class OrdemServicoService {
   async update(
     id: string,
     dto: UpdateOrdemServicoDto,
-    empresaId: string,
+    escopo: EscopoOrdemServico,
   ): Promise<ResponseJson> {
     const ordemServico = await this.prisma.ordemServico.findFirst({
-      where: { id, empresaId },
+      where: { id, empresaId: escopo.empresaId },
       select: {
         id: true,
         empresaId: true,
@@ -456,10 +463,13 @@ export class OrdemServicoService {
       },
     });
 
-    return this.findById(id, empresaId);
+    return this.findById(id, escopo);
   }
 
-  async deleteById(id: string, empresaId: string): Promise<ResponseJson> {
+  async deleteById(
+    id: string,
+    { empresaId }: EscopoOrdemServico,
+  ): Promise<ResponseJson> {
     const ordemServico = await this.prisma.ordemServico.findFirst({
       where: { id, empresaId },
       select: {

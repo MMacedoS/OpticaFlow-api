@@ -182,6 +182,7 @@ export class UsuarioService {
         username: true,
         pessoaId: true,
         empresaId: true,
+        superadmin: true,
         status: true,
         createdAt: true,
         updatedAt: true,

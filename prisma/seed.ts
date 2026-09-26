@@ -126,6 +126,11 @@ const acessos: PermissaoCatalogo[] = [
     descricaoAcesso: 'Gestão de convênios',
   },
   {
+    modulo: 'cliente',
+    nomeAcesso: 'cliente',
+    descricaoAcesso: 'Gestão de clientes',
+  },
+  {
     modulo: 'arquivo',
     nomeAcesso: 'arquivo',
     descricaoAcesso: 'Gestão de arquivos',
@@ -296,11 +301,16 @@ async function main() {
     const superAdminSenhaHash = await bcrypt.hash(superAdminPassword, 10);
     const superAdmin = await prisma.usuario.upsert({
       where: { email: superAdminEmail },
-      update: { username: superAdminUsername, senha: superAdminSenhaHash },
+      update: {
+        username: superAdminUsername,
+        senha: superAdminSenhaHash,
+        superadmin: true,
+      },
       create: {
         email: superAdminEmail,
         username: superAdminUsername,
         senha: superAdminSenhaHash,
+        superadmin: true,
       },
     });
 

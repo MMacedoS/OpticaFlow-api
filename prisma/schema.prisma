@@ -288,6 +288,7 @@ model Usuario {
   createdAt                 DateTime               @default(now())
   updatedAt                 DateTime               @updatedAt
   empresaId                 String?
+  superadmin                Boolean                @default(false)
   agendas_profissional      Agenda[]               @relation("AgendaProfissional")
   arquivos_enviados         Arquivo[]              @relation("ArquivoEnviadoPor")
   atendimentos_profissional Atendimento[]          @relation("AtendimentoProfissional")

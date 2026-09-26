@@ -37,6 +37,7 @@ export class AcessoGuard implements CanActivate {
       select: {
         id: true,
         empresaId: true,
+        superadmin: true,
       },
     });
 
@@ -44,6 +45,10 @@ export class AcessoGuard implements CanActivate {
       throw new UnauthorizedException(
         'Usuário não encontrado para este token.',
       );
+    }
+
+    if (usuario.superadmin) {
+      return true;
     }
 
     const { modulo, routePath } = this.resolveRouteContext(request);
@@ -128,16 +133,14 @@ export class AcessoGuard implements CanActivate {
     modulo: string;
     routePath: string;
   } {
-    const baseUrl = this.normalizePath(request.baseUrl ?? '');
-    const routePath = this.normalizePath(
+    const fullPath = this.normalizePath(
       typeof request.route?.path === 'string' ? request.route.path : '',
     );
-
-    const modulo = baseUrl.split('/').filter(Boolean)[0] ?? 'app';
+    const [modulo = 'app', ...resto] = fullPath.split('/').filter(Boolean);
 
     return {
       modulo: modulo.toLowerCase(),
-      routePath: routePath.toLowerCase(),
+      routePath: this.normalizePath(resto.join('/')).toLowerCase(),
     };
   }
 
@@ -184,9 +187,5 @@ export class AcessoGuard implements CanActivate {
     }
 
     return path.startsWith('/') ? path : `/${path}`;
-  }
-
-  public extractToken(): string | null {
-    return 'olas';
   }
 }

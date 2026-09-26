@@ -71,10 +71,7 @@ export class OrdemServicoController {
     @Param('id') id: string,
     @CurrentUser() user: UsuarioAutenticadoOrdemServico,
   ) {
-    return this.ordemServicoService.findById(
-      id,
-      this.obterEscopo(user).empresaId,
-    );
+    return this.ordemServicoService.findById(id, this.obterEscopo(user));
   }
 
   @Put(':id')
@@ -83,11 +80,7 @@ export class OrdemServicoController {
     @Body() dto: UpdateOrdemServicoDto,
     @CurrentUser() user: UsuarioAutenticadoOrdemServico,
   ) {
-    return this.ordemServicoService.update(
-      id,
-      dto,
-      this.obterEscopo(user).empresaId,
-    );
+    return this.ordemServicoService.update(id, dto, this.obterEscopo(user));
   }
 
   @Delete(':id')
@@ -95,15 +88,16 @@ export class OrdemServicoController {
     @Param('id') id: string,
     @CurrentUser() user: UsuarioAutenticadoOrdemServico,
   ) {
-    return this.ordemServicoService.deleteById(
-      id,
-      this.obterEscopo(user).empresaId,
-    );
+    return this.ordemServicoService.deleteById(id, this.obterEscopo(user));
   }
 
   private obterEscopo(
     user: UsuarioAutenticadoOrdemServico,
   ): EscopoOrdemServico {
+    if (user?.superadmin) {
+      return {};
+    }
+
     if (!user?.empresaId) {
       throw new ForbiddenException('Usuário sem empresa vinculada.');
     }

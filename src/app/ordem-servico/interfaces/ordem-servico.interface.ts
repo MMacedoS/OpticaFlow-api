@@ -85,11 +85,12 @@ export interface OrdemServicoResumo {
 }
 
 export interface UsuarioAutenticadoOrdemServico {
-  empresaId: string;
+  empresaId: string | null;
+  superadmin: boolean;
   pessoa: { filialId: string | null } | null;
 }
 
 export interface EscopoOrdemServico {
-  empresaId: string;
+  empresaId?: string;
   filialId?: string;
 }
