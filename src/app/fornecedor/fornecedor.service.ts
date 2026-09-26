@@ -1,361 +1,238 @@
-import { Injectable } from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
-import { Prisma } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { Fornecedor, Prisma } from '@prisma/client';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateFornecedorDto, UpdateFornecedorDto } from './dto/fornecedor.dto';
-import { FornecedorResumo } from './interfaces/fornecedor.interface';
+import {
+  FiltroFornecedor,
+  FornecedorResumo,
+} from './interfaces/fornecedor.interface';
 
 @Injectable()
 export class FornecedorService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateFornecedorDto): Promise<ResponseJson> {
-    const filial = await this.prisma.filial.findUnique({
-      where: { id: dto.filialId },
-      select: { id: true, empresaId: true },
+  async create(
+    dto: CreateFornecedorDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const empresaId = await this.resolverEmpresa(dto.empresaId, escopo);
+
+    if (dto.cnpj) {
+      await this.garantirCnpjDisponivel(empresaId, dto.cnpj);
+    }
+
+    const fornecedor = await this.prisma.fornecedor.create({
+      data: {
+        empresaId,
+        razao_social: dto.razao_social,
+        nome_fantasia: dto.nome_fantasia,
+        cnpj: dto.cnpj,
+        email: dto.email,
+        telefone: dto.telefone,
+        observacoes: dto.observacoes,
+        ativo: dto.ativo ?? true,
+      },
     });
 
-    if (!filial) {
-      return { status: 422, message: 'Filial não encontrada.' };
-    }
-
-    if (dto.cpf) {
-      const pessoaComCpf = await this.prisma.pessoa.findUnique({
-        where: { cpf: dto.cpf },
-      });
-
-      if (pessoaComCpf) {
-        return { status: 400, message: 'Já existe pessoa com este CPF.' };
-      }
-    }
-
-    const usuarioExistente = await this.prisma.usuario.findUnique({
-      where: { email: dto.email },
-    });
-
-    if (usuarioExistente) {
-      return { status: 400, message: 'Usuário já existe com este email.' };
-    }
-
-    const senhaHash = await bcrypt.hash(dto.senha, 10);
-
-    try {
-      const fornecedor = await this.prisma.$transaction(async (tx) => {
-        const pessoa = await tx.pessoa.create({
-          data: {
-            nome: dto.nome,
-            cpf: dto.cpf,
-            email: dto.email,
-            filialId: filial.id,
-          },
-        });
-
-        await tx.usuario.create({
-          data: {
-            empresaId: filial.empresaId,
-            email: dto.email,
-            senha: senhaHash,
-            username: dto.username ?? dto.nome,
-            pessoaId: pessoa.id,
-          },
-        });
-
-        const novoFornecedor = await tx.fornecedor.create({
-          data: {
-            pessoaId: pessoa.id,
-          },
-          include: {
-            pessoa: {
-              include: {
-                usuario: {
-                  select: {
-                    id: true,
-                    email: true,
-                    username: true,
-                    empresaId: true,
-                  },
-                },
-              },
-            },
-          },
-        });
-
-        return novoFornecedor;
-      });
-
-      return {
-        status: 201,
-        message: 'Fornecedor criado com sucesso.',
-        data: {
-          id: fornecedor.id,
-          pessoaId: fornecedor.pessoaId,
-          nome: fornecedor.pessoa.nome,
-          cpf: fornecedor.pessoa.cpf,
-          email: fornecedor.pessoa.email,
-          filialId: fornecedor.pessoa.filialId,
-          createdAt: fornecedor.createdAt,
-          updatedAt: fornecedor.updatedAt,
-        },
-      };
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        return {
-          status: 422,
-          message: 'Fornecedor já existe com estes dados.',
-        };
-      }
-
-      throw error;
-    }
+    return {
+      status: 201,
+      message: 'Fornecedor criado com sucesso.',
+      data: this.mapResumo(fornecedor),
+    };
   }
 
-  async findAllByFilial(
-    filialId: string,
-    page: number = 1,
-    limit: number = 10,
-    search: string = '',
-  ): Promise<FornecedorResumo[]> {
-    const pageNumber = Math.max(1, page);
-    const limitNumber = Math.max(1, limit);
-    const skip = (pageNumber - 1) * limitNumber;
+  async findAll(
+    escopo: EscopoUsuario,
+    filtro: FiltroFornecedor,
+  ): Promise<ResponseJson> {
+    const page = Math.max(1, filtro.page);
+    const limit = Math.max(1, filtro.limit);
+    const search = filtro.search.trim();
+    const searchDigits = search.replace(/\D/g, '');
 
-    const searchFilter = search
-      ? {
-          OR: [
-            { nome: { contains: search, mode: 'insensitive' as const } },
-            { cpf: { contains: search, mode: 'insensitive' as const } },
-            { email: { contains: search, mode: 'insensitive' as const } },
-            {
-              usuario: {
-                is: {
-                  email: { contains: search, mode: 'insensitive' as const },
-                },
-              },
-            },
-            {
-              usuario: {
-                is: {
-                  username: { contains: search, mode: 'insensitive' as const },
-                },
-              },
-            },
-          ],
-        }
-      : {};
+    const where: Prisma.FornecedorWhereInput = {
+      ...(escopo.empresaId && { empresaId: escopo.empresaId }),
+      ...(typeof filtro.ativo === 'boolean' && { ativo: filtro.ativo }),
+      ...(search && {
+        OR: [
+          { razao_social: { contains: search, mode: 'insensitive' } },
+          { nome_fantasia: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          ...(searchDigits ? [{ cnpj: { contains: searchDigits } }] : []),
+        ],
+      }),
+    };
 
-    const fornecedores = await this.prisma.fornecedor.findMany({
-      skip,
-      take: limitNumber,
-      where: {
-        pessoa: {
-          filialId,
-          ...searchFilter,
-        },
-      },
-      select: {
-        id: true,
-        pessoaId: true,
-        createdAt: true,
-        updatedAt: true,
-        pessoa: {
-          select: {
-            nome: true,
-            cpf: true,
-            email: true,
-            filialId: true,
-            usuario: {
-              select: {
-                id: true,
-                email: true,
-                username: true,
-                empresaId: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    return fornecedores.map((fornecedor) => ({
-      id: fornecedor.id,
-      pessoaId: fornecedor.pessoaId,
-      nome: fornecedor.pessoa.nome,
-      cpf: fornecedor.pessoa.cpf,
-      email: fornecedor.pessoa.email,
-      filialId: fornecedor.pessoa.filialId,
-      usuario: fornecedor.pessoa.usuario,
-      createdAt: fornecedor.createdAt,
-      updatedAt: fornecedor.updatedAt,
-    }));
-  }
-
-  async findById(id: string): Promise<ResponseJson> {
-    const fornecedor = await this.prisma.fornecedor.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        pessoaId: true,
-        createdAt: true,
-        updatedAt: true,
-        pessoa: {
-          select: {
-            nome: true,
-            cpf: true,
-            email: true,
-            filialId: true,
-            usuario: {
-              select: {
-                id: true,
-                email: true,
-                username: true,
-                empresaId: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!fornecedor) {
-      return { status: 422, message: 'Fornecedor não encontrado.' };
-    }
+    const [fornecedores, total] = await this.prisma.$transaction([
+      this.prisma.fornecedor.findMany({
+        skip: (page - 1) * limit,
+        take: limit,
+        where,
+        orderBy: { razao_social: 'asc' },
+      }),
+      this.prisma.fornecedor.count({ where }),
+    ]);
 
     return {
       status: 200,
-      message: 'Fornecedor encontrado.',
+      message: 'Fornecedores listados com sucesso.',
       data: {
-        id: fornecedor.id,
-        pessoaId: fornecedor.pessoaId,
-        nome: fornecedor.pessoa.nome,
-        cpf: fornecedor.pessoa.cpf,
-        email: fornecedor.pessoa.email,
-        filialId: fornecedor.pessoa.filialId,
-        usuario: fornecedor.pessoa.usuario,
-        createdAt: fornecedor.createdAt,
-        updatedAt: fornecedor.updatedAt,
+        fornecedores: fornecedores.map((fornecedor) =>
+          this.mapResumo(fornecedor),
+        ),
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
       },
     };
   }
 
-  async update(id: string, dto: UpdateFornecedorDto): Promise<ResponseJson> {
-    const fornecedor = await this.prisma.fornecedor.findUnique({
-      where: { id },
-      include: {
-        pessoa: {
-          include: {
-            usuario: true,
-          },
-        },
-      },
-    });
+  async findById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const fornecedor = await this.buscarNoEscopo(id, escopo);
 
-    if (!fornecedor) {
-      return { status: 422, message: 'Fornecedor não encontrado.' };
-    }
-
-    const usuario = fornecedor.pessoa.usuario;
-
-    if (!usuario) {
-      return {
-        status: 422,
-        message: 'Usuário vinculado ao fornecedor não foi encontrado.',
-      };
-    }
-
-    if (dto.cpf && dto.cpf !== fornecedor.pessoa.cpf) {
-      const pessoaComCpf = await this.prisma.pessoa.findUnique({
-        where: { cpf: dto.cpf },
-      });
-
-      if (pessoaComCpf) {
-        return { status: 400, message: 'Já existe pessoa com este CPF.' };
-      }
-    }
-
-    if (dto.email && dto.email !== usuario.email) {
-      const usuarioComEmail = await this.prisma.usuario.findUnique({
-        where: { email: dto.email },
-      });
-
-      if (usuarioComEmail && usuarioComEmail.id !== usuario.id) {
-        return { status: 400, message: 'Usuário já existe com este email.' };
-      }
-    }
-
-    const filialDestinoId = dto.filialId ?? fornecedor.pessoa.filialId;
-    const filialDestino = await this.prisma.filial.findUnique({
-      where: { id: filialDestinoId },
-      select: { id: true, empresaId: true },
-    });
-
-    if (!filialDestino) {
-      return { status: 422, message: 'Filial não encontrada.' };
-    }
-
-    const senhaHash = dto.senha ? await bcrypt.hash(dto.senha, 10) : null;
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.pessoa.update({
-        where: { id: fornecedor.pessoaId },
-        data: {
-          nome: dto.nome,
-          cpf: dto.cpf,
-          email: dto.email,
-          filialId: filialDestino.id,
-        },
-      });
-
-      await tx.usuario.update({
-        where: { id: usuario.id },
-        data: {
-          empresaId: filialDestino.empresaId,
-          email: dto.email,
-          username: dto.username,
-          ...(senhaHash && { senha: senhaHash }),
-        },
-      });
-    });
-
-    return this.findById(id);
+    return {
+      status: 200,
+      message: 'Fornecedor encontrado.',
+      data: this.mapResumo(fornecedor),
+    };
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const fornecedor = await this.prisma.fornecedor.findUnique({
+  async update(
+    id: string,
+    dto: UpdateFornecedorDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const fornecedor = await this.buscarNoEscopo(id, escopo);
+
+    if (dto.cnpj && dto.cnpj !== fornecedor.cnpj) {
+      await this.garantirCnpjDisponivel(fornecedor.empresaId, dto.cnpj, id);
+    }
+
+    const fornecedorAtualizado = await this.prisma.fornecedor.update({
       where: { id },
-      include: {
-        pessoa: {
-          include: {
-            usuario: {
-              select: { id: true },
-            },
-          },
-        },
+      data: {
+        razao_social: dto.razao_social,
+        nome_fantasia: dto.nome_fantasia,
+        cnpj: dto.cnpj,
+        email: dto.email,
+        telefone: dto.telefone,
+        observacoes: dto.observacoes,
+        ativo: dto.ativo,
       },
     });
 
-    if (!fornecedor) {
-      return { status: 422, message: 'Fornecedor não encontrado.' };
-    }
+    return {
+      status: 200,
+      message: 'Fornecedor atualizado com sucesso.',
+      data: this.mapResumo(fornecedorAtualizado),
+    };
+  }
 
-    await this.prisma.$transaction(async (tx) => {
-      if (fornecedor.pessoa.usuario) {
-        await tx.usuario.delete({
-          where: { id: fornecedor.pessoa.usuario.id },
-        });
-      }
+  async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    await this.buscarNoEscopo(id, escopo);
 
-      await tx.pessoa.delete({
-        where: { id: fornecedor.pessoaId },
-      });
+    const comprasVinculadas = await this.prisma.compra.count({
+      where: { fornecedorId: id },
     });
 
-    return { status: 200, message: 'Fornecedor deletado com sucesso.' };
+    if (comprasVinculadas > 0) {
+      throw new ConflictException(
+        'Não é possível excluir fornecedor com compras vinculadas. Inative-o.',
+      );
+    }
+
+    await this.prisma.fornecedor.delete({ where: { id } });
+
+    return {
+      status: 200,
+      message: 'Fornecedor deletado com sucesso.',
+    };
+  }
+
+  private async buscarNoEscopo(
+    id: string,
+    escopo: EscopoUsuario,
+  ): Promise<Fornecedor> {
+    const fornecedor = await this.prisma.fornecedor.findFirst({
+      where: { id, ...(escopo.empresaId && { empresaId: escopo.empresaId }) },
+    });
+
+    if (!fornecedor) {
+      throw new NotFoundException('Fornecedor não encontrado.');
+    }
+
+    return fornecedor;
+  }
+
+  private async resolverEmpresa(
+    empresaIdInformada: string | undefined,
+    escopo: EscopoUsuario,
+  ): Promise<string> {
+    if (escopo.empresaId) {
+      return escopo.empresaId;
+    }
+
+    if (!empresaIdInformada) {
+      throw new BadRequestException('Informe a empresa do fornecedor.');
+    }
+
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { id: empresaIdInformada },
+      select: { id: true },
+    });
+
+    if (!empresa) {
+      throw new UnprocessableEntityException('Empresa não encontrada.');
+    }
+
+    return empresa.id;
+  }
+
+  private async garantirCnpjDisponivel(
+    empresaId: string,
+    cnpj: string,
+    ignorarId?: string,
+  ): Promise<void> {
+    const existente = await this.prisma.fornecedor.findFirst({
+      where: {
+        empresaId,
+        cnpj,
+        ...(ignorarId && { NOT: { id: ignorarId } }),
+      },
+      select: { id: true },
+    });
+
+    if (existente) {
+      throw new ConflictException(
+        'Já existe um fornecedor com este CNPJ nesta empresa.',
+      );
+    }
+  }
+
+  private mapResumo(fornecedor: Fornecedor): FornecedorResumo {
+    return {
+      id: fornecedor.id,
+      empresaId: fornecedor.empresaId,
+      razao_social: fornecedor.razao_social,
+      nome_fantasia: fornecedor.nome_fantasia,
+      cnpj: fornecedor.cnpj,
+      email: fornecedor.email,
+      telefone: fornecedor.telefone,
+      observacoes: fornecedor.observacoes,
+      ativo: fornecedor.ativo,
+      createdAt: fornecedor.createdAt,
+      updatedAt: fornecedor.updatedAt,
+    };
   }
 }

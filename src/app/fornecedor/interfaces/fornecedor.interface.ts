@@ -1,16 +1,20 @@
 export interface FornecedorResumo {
   id: string;
-  pessoaId: string;
-  nome: string;
-  cpf: string | null;
+  empresaId: string;
+  razao_social: string;
+  nome_fantasia: string | null;
+  cnpj: string | null;
   email: string | null;
-  filialId: string;
-  usuario: {
-    id: string;
-    email: string;
-    username: string | null;
-    empresaId: string | null;
-  } | null;
+  telefone: string | null;
+  observacoes: string | null;
+  ativo: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface FiltroFornecedor {
+  page: number;
+  limit: number;
+  search: string;
+  ativo?: boolean;
 }

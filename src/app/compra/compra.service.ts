@@ -32,9 +32,9 @@ export class CompraService {
     }
 
     if (dto.fornecedorId) {
-      const validacaoFornecedor = await this.validarFornecedorDaFilial(
+      const validacaoFornecedor = await this.validarFornecedorDaEmpresa(
         dto.fornecedorId,
-        dto.filialId,
+        dto.empresaId,
       );
 
       if (!validacaoFornecedor.valido) {
@@ -129,9 +129,17 @@ export class CompraService {
               {
                 fornecedor: {
                   is: {
-                    pessoa: {
-                      nome: { contains: search, mode: 'insensitive' },
-                    },
+                    OR: [
+                      {
+                        razao_social: { contains: search, mode: 'insensitive' },
+                      },
+                      {
+                        nome_fantasia: {
+                          contains: search,
+                          mode: 'insensitive',
+                        },
+                      },
+                    ],
                   },
                 },
               },
@@ -155,13 +163,9 @@ export class CompraService {
           fornecedor: {
             select: {
               id: true,
-              pessoa: {
-                select: {
-                  id: true,
-                  nome: true,
-                  cpf: true,
-                },
-              },
+              razao_social: true,
+              nome_fantasia: true,
+              cnpj: true,
             },
           },
         },
@@ -198,13 +202,9 @@ export class CompraService {
         fornecedor: {
           select: {
             id: true,
-            pessoa: {
-              select: {
-                id: true,
-                nome: true,
-                cpf: true,
-              },
-            },
+            razao_social: true,
+            nome_fantasia: true,
+            cnpj: true,
           },
         },
         itens: {
@@ -246,7 +246,7 @@ export class CompraService {
       where: { id },
       select: {
         id: true,
-        filialId: true,
+        empresaId: true,
       },
     });
 
@@ -255,9 +255,9 @@ export class CompraService {
     }
 
     if (dto.fornecedorId) {
-      const validacaoFornecedor = await this.validarFornecedorDaFilial(
+      const validacaoFornecedor = await this.validarFornecedorDaEmpresa(
         dto.fornecedorId,
-        compra.filialId,
+        compra.empresaId,
       );
 
       if (!validacaoFornecedor.valido) {
@@ -327,20 +327,13 @@ export class CompraService {
     };
   }
 
-  private async validarFornecedorDaFilial(
+  private async validarFornecedorDaEmpresa(
     fornecedorId: string,
-    filialId: string,
+    empresaId: string,
   ): Promise<{ valido: boolean; mensagem: string }> {
     const fornecedor = await this.prisma.fornecedor.findUnique({
       where: { id: fornecedorId },
-      select: {
-        id: true,
-        pessoa: {
-          select: {
-            filialId: true,
-          },
-        },
-      },
+      select: { id: true, empresaId: true },
     });
 
     if (!fornecedor) {
@@ -350,10 +343,10 @@ export class CompraService {
       };
     }
 
-    if (fornecedor.pessoa.filialId !== filialId) {
+    if (fornecedor.empresaId !== empresaId) {
       return {
         valido: false,
-        mensagem: 'Fornecedor não pertence à filial informada.',
+        mensagem: 'Fornecedor não pertence à empresa informada.',
       };
     }
 

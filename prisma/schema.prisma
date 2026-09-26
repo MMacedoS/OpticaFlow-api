@@ -31,6 +31,7 @@ model Empresa {
   filiais                Filial[]
   financeiro_lancamentos FinanceiroLancamento[]
   laboratorios           Laboratorio[]
+  fornecedores           Fornecedor[]
   movimentos_estoque     MovimentoEstoque[]
   notificacoes           Notificacao[]
   ordens_servico         OrdemServico[]
@@ -159,7 +160,6 @@ model Pessoa {
   contatos        Contato[]
   documentos      Documento[]
   enderecos       Endereco[]
-  fornecedor      Fornecedor?
   funcionario     Funcionario?
   notificacoes    Notificacao[]
   oftalmologista  Oftalmologista?
@@ -261,12 +261,22 @@ model Oftalmologista {
 }
 
 model Fornecedor {
-  id        String   @id @default(cuid())
-  pessoaId  String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  compras   Compra[]
-  pessoa    Pessoa   @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+  id            String   @id @default(cuid())
+  empresaId     String
+  razao_social  String
+  nome_fantasia String?
+  cnpj          String?
+  email         String?
+  telefone      String?
+  observacoes   String?
+  ativo         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  empresa       Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  compras       Compra[]
+
+  @@unique([empresaId, cnpj])
+  @@index([empresaId])
 }
 
 model Responsavel {
