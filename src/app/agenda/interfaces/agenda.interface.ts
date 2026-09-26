@@ -1,5 +1,18 @@
 import { StatusAgenda } from '@prisma/client';
 
+export interface Agenda {
+  id: string;
+  empresaId: string;
+  filialId: string;
+  pessoaId: string | null;
+  profissionalId: string | null;
+  dataHora: Date;
+  duracaoMin: number | null;
+  status: StatusAgenda;
+  observacao: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 export interface AgendaResumo {
   id: string;
   empresaId: string;

@@ -1,5 +1,22 @@
 import { StatusAgenda, StatusAtendimento } from '@prisma/client';
 
+export interface Atendimento {
+  id: string;
+  empresaId: string;
+  filialId: string;
+  agendaId: string | null;
+  pacienteId: string;
+  profissionalId: string | null;
+  clienteId: string | null;
+  convenioId: string | null;
+  dataAtendimento: Date;
+  status: StatusAtendimento;
+  queixa_principal: string | null;
+  observacoes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface AtendimentoResumo {
   id: string;
   empresaId: string;

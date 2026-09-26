@@ -4,11 +4,12 @@ import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { OrdemServicoController } from './ordem-servico.controller';
 import { OrdemServicoService } from './ordem-servico.service';
+import { UsuarioModule } from '../usuario/usuario.module';
 
 @Module({
   providers: [OrdemServicoService, AcessoGuard],
   controllers: [OrdemServicoController],
-  imports: [forwardRef(() => AuthModule), PrismaModule],
+  imports: [forwardRef(() => AuthModule), PrismaModule, UsuarioModule],
   exports: [OrdemServicoService],
 })
 export class OrdemServicoModule {}

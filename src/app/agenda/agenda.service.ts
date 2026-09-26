@@ -80,6 +80,7 @@ export class AgendaService {
               atendimentoId: atendimento?.id || null,
 
               numero: prepareNumeroOrdemServico(),
+              data_entrega: dto.dataHora ? new Date(dto.dataHora) : new Date(),
               status: dto.ordemServico.status,
               valor_total: dto.ordemServico.valor_total ?? 0,
               descricao: dto.ordemServico.descricao,
@@ -98,11 +99,6 @@ export class AgendaService {
               })),
             });
           }
-
-          const ordemServicoCompleta = await tx.ordemServico.findUnique({
-            where: { id: ordemServico.id },
-            include: { itens: true },
-          });
         }
 
         return {

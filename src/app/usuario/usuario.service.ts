@@ -3,7 +3,7 @@ import * as bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateUsuarioDto } from './dto/createUsuario.dto';
-import { Usuario } from './usuario.interface';
+import { Usuario } from './interface/usuario.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { UpdateUsuarioDto } from './dto/updateUsuario.dto';
 import { Observable } from 'rxjs';

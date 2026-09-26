@@ -8,6 +8,7 @@ import {
   Put,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
@@ -16,37 +17,54 @@ import {
   UpdateOrdemServicoDto,
 } from './dto/ordem-servico.dto';
 import { OrdemServicoService } from './ordem-servico.service';
+import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 
-@Controller('ordem-servico')
+@Controller('service-orders')
 @UseGuards(AuthGuard, AcessoGuard)
+@UseInterceptors(EnrichUserInterceptor)
 export class OrdemServicoController {
   constructor(private readonly ordemServicoService: OrdemServicoService) {}
 
   @Post()
-  async createOrdemServico(@Body() dto: CreateOrdemServicoDto) {
-    return this.ordemServicoService.create(dto);
+  async createOrdemServico(
+    @Body() dto: CreateOrdemServicoDto,
+    @CurrentUser() user?: any,
+  ) {
+    if (!user || !user.pessoa || !user.pessoa.filialId) {
+      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
+    }
+
+    return this.ordemServicoService.create(
+      dto,
+      user.pessoa.filialId,
+      user.empresaId,
+    );
   }
 
-  @Get('empresa/:empresaId')
-  async getAllByEmpresa(
-    @Param('empresaId') empresaId: string,
+  @Get()
+  async getAllByFilial(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
-    @Query('filialId') filialId?: string,
     @Query('clienteId') clienteId?: string,
     @Query('atendimentoId') atendimentoId?: string,
     @Query('laboratorioId') laboratorioId?: string,
     @Query('status') status?: string,
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
+    @CurrentUser() user?: any,
   ) {
-    return this.ordemServicoService.findAllByEmpresa(
-      empresaId,
+    if (!user || !user.pessoa || !user.pessoa.filialId) {
+      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
+    }
+
+    return this.ordemServicoService.findAllByFilial(
+      user.pessoa.filialId,
+      user.empresaId,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 10,
       search ?? '',
-      filialId,
       clienteId,
       atendimentoId,
       laboratorioId,

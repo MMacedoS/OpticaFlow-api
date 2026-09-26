@@ -6,28 +6,29 @@ import {
   CreateOrdemServicoDto,
   UpdateOrdemServicoDto,
 } from './dto/ordem-servico.dto';
-import { OrdemServicoResumo } from './interfaces/ordem-servico.interface';
+import {
+  OrdemServicoItemResumo,
+  OrdemServicoResumo,
+} from './interfaces/ordem-servico.interface';
 
 @Injectable()
 export class OrdemServicoService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateOrdemServicoDto): Promise<ResponseJson> {
-    const empresa = await this.prisma.empresa.findUnique({
-      where: { id: dto.empresaId },
-      select: { id: true },
-    });
-
-    if (!empresa) {
-      return { status: 422, message: 'Empresa nao encontrada.' };
-    }
+  async create(
+    dto: CreateOrdemServicoDto,
+    filialIdUsuario: string,
+    empresaIdUsuario: string,
+  ): Promise<ResponseJson> {
+    const filialId = dto.filialId ?? filialIdUsuario;
+    const empresaId = empresaIdUsuario;
 
     const filial = await this.prisma.filial.findUnique({
-      where: { id: dto.filialId },
+      where: { id: filialId },
       select: { id: true, empresaId: true },
     });
 
-    if (!filial || filial.empresaId !== dto.empresaId) {
+    if (!filial || filial.empresaId !== empresaId) {
       return {
         status: 422,
         message: 'Filial nao encontrada para a empresa informada.',
@@ -37,7 +38,7 @@ export class OrdemServicoService {
     if (dto.clienteId) {
       const validacaoCliente = await this.validarClienteDaFilial(
         dto.clienteId,
-        dto.filialId,
+        filialId,
       );
 
       if (!validacaoCliente.valido) {
@@ -48,7 +49,7 @@ export class OrdemServicoService {
     if (dto.laboratorioId) {
       const validacaoLaboratorio = await this.validarLaboratorioDaEmpresa(
         dto.laboratorioId,
-        dto.empresaId,
+        empresaId,
       );
 
       if (!validacaoLaboratorio.valido) {
@@ -59,8 +60,8 @@ export class OrdemServicoService {
     if (dto.atendimentoId) {
       const validacaoAtendimento = await this.validarAtendimentoDaOrdemServico(
         dto.atendimentoId,
-        dto.empresaId,
-        dto.filialId,
+        empresaId,
+        filialId,
         dto.clienteId,
       );
 
@@ -69,24 +70,79 @@ export class OrdemServicoService {
       }
     }
 
+    if (dto.itens && dto.itens.length > 0) {
+      for (const item of dto.itens) {
+        if (!item.produtoId && !item.descricao_servico) {
+          return {
+            status: 422,
+            message:
+              'Cada item deve conter produtoId ou descricao_servico.',
+          };
+        }
+
+        if (item.produtoId) {
+          const produto = await this.prisma.produto.findUnique({
+            where: { id: item.produtoId },
+            select: { id: true, empresaId: true },
+          });
+
+          if (!produto || produto.empresaId !== empresaId) {
+            return {
+              status: 422,
+              message: `Produto ${item.produtoId} nao encontrado para a empresa informada.`,
+            };
+          }
+        }
+      }
+    }
+
     try {
-      const ordemServico = await this.prisma.ordemServico.create({
-        data: {
-          empresaId: dto.empresaId,
-          filialId: dto.filialId,
-          atendimentoId: dto.atendimentoId,
-          clienteId: dto.clienteId,
-          laboratorioId: dto.laboratorioId,
-          numero: dto.numero,
-          status: dto.status,
-          descricao: dto.descricao,
-          previsao_entrega: dto.previsao_entrega
-            ? new Date(dto.previsao_entrega)
-            : undefined,
-          data_entrega: dto.data_entrega
-            ? new Date(dto.data_entrega)
-            : undefined,
-        },
+      const ordemServico = await this.prisma.$transaction(async (tx) => {
+        const ordem = await tx.ordemServico.create({
+          data: {
+            empresaId,
+            filialId,
+            atendimentoId: dto.atendimentoId,
+            clienteId: dto.clienteId,
+            laboratorioId: dto.laboratorioId,
+            numero: dto.numero,
+            status: dto.status,
+            descricao: dto.descricao,
+            previsao_entrega: dto.previsao_entrega
+              ? new Date(dto.previsao_entrega)
+              : undefined,
+            data_entrega: dto.data_entrega
+              ? new Date(dto.data_entrega)
+              : undefined,
+          },
+          select: { id: true },
+        });
+
+        if (dto.itens && dto.itens.length > 0) {
+          await tx.ordemServicoItem.createMany({
+            data: dto.itens.map((item) => ({
+              ordemServicoId: ordem.id,
+              produtoId: item.produtoId,
+              descricao_servico: item.descricao_servico,
+              quantidade: item.quantidade,
+              valor_unitario: item.valor_unitario,
+              desconto: item.desconto,
+            })),
+          });
+
+          const valorTotal = dto.itens.reduce((acc, item) => {
+            const subtotal =
+              item.quantidade * item.valor_unitario - (item.desconto ?? 0);
+            return acc + Math.max(0, subtotal);
+          }, 0);
+
+          await tx.ordemServico.update({
+            where: { id: ordem.id },
+            data: { valor_total: valorTotal },
+          });
+        }
+
+        return ordem;
       });
 
       return this.findById(ordemServico.id);
@@ -105,12 +161,12 @@ export class OrdemServicoService {
     }
   }
 
-  async findAllByEmpresa(
+  async findAllByFilial(
+    filialId: string,
     empresaId: string,
     page: number = 1,
     limit: number = 10,
     search: string = '',
-    filialId?: string,
     clienteId?: string,
     atendimentoId?: string,
     laboratorioId?: string,
@@ -118,27 +174,16 @@ export class OrdemServicoService {
     dataInicio?: string,
     dataFim?: string,
   ): Promise<ResponseJson> {
-    const empresa = await this.prisma.empresa.findUnique({
-      where: { id: empresaId },
-      select: { id: true },
+    const filial = await this.prisma.filial.findUnique({
+      where: { id: filialId },
+      select: { id: true, empresaId: true },
     });
 
-    if (!empresa) {
-      return { status: 422, message: 'Empresa nao encontrada.' };
-    }
-
-    if (filialId) {
-      const filial = await this.prisma.filial.findUnique({
-        where: { id: filialId },
-        select: { id: true, empresaId: true },
-      });
-
-      if (!filial || filial.empresaId !== empresaId) {
-        return {
-          status: 422,
-          message: 'Filial nao encontrada para a empresa informada.',
-        };
-      }
+    if (!filial || filial.empresaId !== empresaId) {
+      return {
+        status: 422,
+        message: 'Filial nao encontrada para a empresa informada.',
+      };
     }
 
     const statusFiltro = status
@@ -157,8 +202,7 @@ export class OrdemServicoService {
     const skip = (pageNumber - 1) * limitNumber;
 
     const where: Prisma.OrdemServicoWhereInput = {
-      empresaId,
-      ...(filialId && { filialId }),
+      filialId,
       ...(clienteId && { clienteId }),
       ...(atendimentoId && { atendimentoId }),
       ...(laboratorioId && { laboratorioId }),
@@ -192,9 +236,87 @@ export class OrdemServicoService {
                   },
                 },
               },
+              {
+                atendimento: {
+                  is: {
+                    paciente: {
+                      nome: { contains: search, mode: 'insensitive' },
+                    },
+                  },
+                },
+              },
             ],
           }
         : {}),
+    };
+
+    const ordemInclude = {
+      filial: { select: { id: true, nome: true } },
+      empresa: { select: { id: true, nome: true } },
+      cliente: {
+        select: {
+          id: true,
+          numero_convenio: true,
+          pessoa: {
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+              cpf: true,
+            },
+          },
+        },
+      },
+      atendimento: {
+        select: {
+          id: true,
+          dataAtendimento: true,
+          status: true,
+          queixa_principal: true,
+          paciente: {
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+              cpf: true,
+            },
+          },
+          profissional: {
+            select: {
+              id: true,
+              email: true,
+              username: true,
+              pessoa: {
+                select: {
+                  id: true,
+                  nome: true,
+                },
+              },
+            },
+          },
+          convenio: {
+            select: {
+              id: true,
+              nome: true,
+              registro: true,
+            },
+          },
+        },
+      },
+      laboratorio: { select: { id: true, nome: true, cnpj: true } },
+      itens: {
+        include: {
+          produto: {
+            select: {
+              id: true,
+              nome: true,
+              sku: true,
+              tipo: true,
+            },
+          },
+        },
+        orderBy: { id: 'asc' as const },
+      },
     };
 
     const [ordens, total] = await this.prisma.$transaction([
@@ -202,40 +324,7 @@ export class OrdemServicoService {
         skip,
         take: limitNumber,
         where,
-        include: {
-          filial: {
-            select: {
-              id: true,
-              nome: true,
-            },
-          },
-          cliente: {
-            select: {
-              id: true,
-              pessoa: {
-                select: {
-                  id: true,
-                  nome: true,
-                  cpf: true,
-                },
-              },
-            },
-          },
-          atendimento: {
-            select: {
-              id: true,
-              dataAtendimento: true,
-              status: true,
-            },
-          },
-          laboratorio: {
-            select: {
-              id: true,
-              nome: true,
-              cnpj: true,
-            },
-          },
-        },
+        include: ordemInclude,
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.ordemServico.count({ where }),
@@ -245,7 +334,7 @@ export class OrdemServicoService {
       status: 200,
       message: 'Ordens de servico listadas com sucesso.',
       data: {
-        orders: ordens.map((ordem) => this.mapResumo(ordem)),
+        orders: ordens.map((ordem) => this.mapResumo(ordem as any)),
         pagination: {
           total,
           page: pageNumber,
@@ -260,19 +349,17 @@ export class OrdemServicoService {
     const ordemServico = await this.prisma.ordemServico.findUnique({
       where: { id },
       include: {
-        filial: {
-          select: {
-            id: true,
-            nome: true,
-          },
-        },
+        filial: { select: { id: true, nome: true } },
+        empresa: { select: { id: true, nome: true } },
         cliente: {
           select: {
             id: true,
+            numero_convenio: true,
             pessoa: {
               select: {
                 id: true,
                 nome: true,
+                email: true,
                 cpf: true,
               },
             },
@@ -283,15 +370,38 @@ export class OrdemServicoService {
             id: true,
             dataAtendimento: true,
             status: true,
+            queixa_principal: true,
+            paciente: {
+              select: {
+                id: true,
+                nome: true,
+                email: true,
+                cpf: true,
+              },
+            },
+            profissional: {
+              select: {
+                id: true,
+                email: true,
+                username: true,
+                pessoa: {
+                  select: {
+                    id: true,
+                    nome: true,
+                  },
+                },
+              },
+            },
+            convenio: {
+              select: {
+                id: true,
+                nome: true,
+                registro: true,
+              },
+            },
           },
         },
-        laboratorio: {
-          select: {
-            id: true,
-            nome: true,
-            cnpj: true,
-          },
-        },
+        laboratorio: { select: { id: true, nome: true, cnpj: true } },
         itens: {
           include: {
             produto: {
@@ -303,9 +413,7 @@ export class OrdemServicoService {
               },
             },
           },
-          orderBy: {
-            id: 'asc',
-          },
+          orderBy: { id: 'asc' },
         },
       },
     });
@@ -317,14 +425,7 @@ export class OrdemServicoService {
     return {
       status: 200,
       message: 'Ordem de servico encontrada.',
-      data: {
-        ...this.mapResumo(ordemServico),
-        filial: ordemServico.filial,
-        cliente: ordemServico.cliente,
-        atendimento: ordemServico.atendimento,
-        laboratorio: ordemServico.laboratorio,
-        itens: ordemServico.itens,
-      },
+      data: this.mapResumo(ordemServico as any),
     };
   }
 
@@ -434,22 +535,51 @@ export class OrdemServicoService {
     };
   }
 
-  private mapResumo(ordemServico: OrdemServicoResumo): OrdemServicoResumo {
+  private mapResumo(ordemServico: any): OrdemServicoResumo {
+    const mapItem = (item: any): OrdemServicoItemResumo => ({
+      id: item.id,
+      ordemServicoId: item.ordemServicoId,
+      produtoId: item.produtoId ?? null,
+      descricao_servico: item.descricao_servico ?? null,
+      quantidade: item.quantidade,
+      valor_unitario: item.valor_unitario,
+      desconto: item.desconto ?? null,
+      subtotal: Math.max(
+        0,
+        item.quantidade * item.valor_unitario - (item.desconto ?? 0),
+      ),
+      produto: item.produto ?? null,
+    });
+
     return {
       id: ordemServico.id,
       empresaId: ordemServico.empresaId,
       filialId: ordemServico.filialId,
-      atendimentoId: ordemServico.atendimentoId,
-      clienteId: ordemServico.clienteId,
-      laboratorioId: ordemServico.laboratorioId,
-      numero: ordemServico.numero,
+      atendimentoId: ordemServico.atendimentoId ?? null,
+      clienteId: ordemServico.clienteId ?? null,
+      laboratorioId: ordemServico.laboratorioId ?? null,
+      numero: ordemServico.numero ?? null,
       status: ordemServico.status,
-      descricao: ordemServico.descricao,
-      previsao_entrega: ordemServico.previsao_entrega,
-      data_entrega: ordemServico.data_entrega,
+      descricao: ordemServico.descricao ?? null,
+      previsao_entrega: ordemServico.previsao_entrega ?? null,
+      data_entrega:
+        ordemServico.data_entrega ??
+        ordemServico.atendimento?.dataAtendimento ??
+        null,
       valor_total: ordemServico.valor_total,
       createdAt: ordemServico.createdAt,
       updatedAt: ordemServico.updatedAt,
+      filial: ordemServico.filial ?? null,
+      empresa: {
+        id: ordemServico.empresaId,
+        nome: ordemServico.empresa?.nome ?? '',
+      },
+      cliente: ordemServico.cliente ?? null,
+      atendimento: ordemServico.atendimento ?? null,
+      laboratorio: ordemServico.laboratorio ?? null,
+      itens: Array.isArray(ordemServico.itens)
+        ? ordemServico.itens.map(mapItem)
+        : [],
     };
   }
 

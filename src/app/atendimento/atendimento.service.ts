@@ -7,6 +7,7 @@ import {
   UpdateAtendimentoDto,
 } from './dto/atendimento.dto';
 import { AtendimentoResumo } from './interfaces/atendimento.interface';
+import { prepareNumeroOrdemServico } from 'src/utils/validator';
 
 @Injectable()
 export class AtendimentoService {
@@ -79,21 +80,58 @@ export class AtendimentoService {
     }
 
     try {
-      const atendimento = await this.prisma.atendimento.create({
-        data: {
-          empresaId: filial.empresaId,
-          filialId: filial.id,
-          pacienteId: dto.pacienteId,
-          profissionalId: dto.profissionalId,
-          clienteId: dto.clienteId,
-          convenioId: dto.convenioId,
-          dataAtendimento: dto.dataAtendimento
-            ? new Date(dto.dataAtendimento)
-            : undefined,
-          status: dto.status,
-          queixa_principal: dto.queixa_principal,
-          observacoes: dto.observacoes,
-        },
+      const atendimento = await this.prisma.$transaction(async (tx) => {
+        const atend = await tx.atendimento.create({
+          data: {
+            empresaId: filial.empresaId,
+            filialId: filial.id,
+            pacienteId: dto.pacienteId,
+            profissionalId: dto.profissionalId,
+            clienteId: dto.clienteId,
+            convenioId: dto.convenioId,
+            dataAtendimento: dto.dataAtendimento
+              ? new Date(dto.dataAtendimento)
+              : undefined,
+            status: dto.status,
+            queixa_principal: dto.queixa_principal,
+            observacoes: dto.observacoes,
+          },
+        });
+
+        if (!dto.ordemServico) {
+          return atend;
+        }
+
+        const ordemServico = await tx.ordemServico.create({
+          data: {
+            empresaId: filial.empresaId,
+            filialId: filial.id,
+            clienteId: dto.clienteId || null,
+            atendimentoId: atend.id,
+
+            numero: prepareNumeroOrdemServico(),
+            data_entrega: dto.dataAtendimento
+              ? new Date(dto.dataAtendimento)
+              : new Date(),
+            status: dto.ordemServico.status,
+            valor_total: dto.ordemServico.valor_total ?? 0,
+            descricao: dto.ordemServico.descricao,
+          },
+        });
+
+        if (dto.ordemServico.itens && dto.ordemServico.itens.length > 0) {
+          await tx.ordemServicoItem.createMany({
+            data: dto.ordemServico.itens.map((item) => ({
+              ordemServicoId: ordemServico.id,
+              produtoId: item.produtoId || null,
+              descricao_servico: item.descricao_servico || null,
+              quantidade: item.quantidade,
+              valor_unitario: item.valor_unitario,
+              desconto: item.desconto || 0,
+            })),
+          });
+        }
+        return atend;
       });
 
       return this.findById(atendimento.id);
@@ -482,6 +520,52 @@ export class AtendimentoService {
 
       throw error;
     }
+  }
+
+  async updateStatus(
+    id: string,
+    status: StatusAtendimento,
+  ): Promise<ResponseJson> {
+    const atendimento = await this.prisma.atendimento.findUnique({
+      where: { id },
+    });
+
+    if (!atendimento) {
+      return { status: 422, message: 'Atendimento não encontrado.' };
+    }
+    return await this.prisma.$transaction(async (tx) => {
+      const updatedAtendimento = await tx.atendimento.update({
+        where: { id },
+        data: { status },
+      });
+
+      if (!updatedAtendimento) {
+        return {
+          status: 422,
+          message: 'Falha ao atualizar o status do atendimento.',
+        };
+      }
+
+      if (status === 'concluido' && updatedAtendimento.agendaId) {
+        await tx.agenda.update({
+          where: { id: updatedAtendimento.agendaId },
+          data: { status: 'concluido' },
+        });
+      }
+
+      if (status === 'cancelado' && updatedAtendimento.agendaId) {
+        await tx.agenda.update({
+          where: { id: updatedAtendimento.agendaId },
+          data: { status: 'cancelado' },
+        });
+      }
+
+      return {
+        status: 200,
+        message: 'Status do atendimento atualizado com sucesso.',
+        data: updatedAtendimento,
+      };
+    });
   }
 
   async deleteById(id: string): Promise<ResponseJson> {

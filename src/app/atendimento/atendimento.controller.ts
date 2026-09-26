@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -28,7 +29,15 @@ export class AtendimentoController {
   constructor(private readonly atendimentoService: AtendimentoService) {}
 
   @Post()
-  async createAtendimento(@Body() dto: CreateAtendimentoDto) {
+  async createAtendimento(
+    @Body() dto: CreateAtendimentoDto,
+    @CurrentUser() user?: any,
+  ) {
+    if (!user || !user.pessoa || !user.pessoa.filialId) {
+      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
+    }
+
+    dto.filialId = user.pessoa.filialId;
     return this.atendimentoService.create(dto);
   }
 
@@ -74,6 +83,14 @@ export class AtendimentoController {
     @Body() dto: UpdateAtendimentoDto,
   ) {
     return this.atendimentoService.update(id, dto);
+  }
+
+  @Patch(':id/status')
+  async updateAtendimentoStatus(
+    @Param('id') id: string,
+    @Body('status') status: StatusAtendimento,
+  ) {
+    return this.atendimentoService.updateStatus(id, status);
   }
 
   @Delete(':id')
