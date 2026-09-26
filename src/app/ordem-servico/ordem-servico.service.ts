@@ -7,13 +7,13 @@ import {
 } from '@nestjs/common';
 import { Prisma, StatusOrdemServico } from '@prisma/client';
 import { ResponseJson } from 'src/interface/response/response.interface';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   CreateOrdemServicoDto,
   UpdateOrdemServicoDto,
 } from './dto/ordem-servico.dto';
 import {
-  EscopoOrdemServico,
   OrdemServicoItemResumo,
   OrdemServicoResumo,
 } from './interfaces/ordem-servico.interface';
@@ -24,7 +24,7 @@ export class OrdemServicoService {
 
   async create(
     dto: CreateOrdemServicoDto,
-    escopo: EscopoOrdemServico,
+    escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
     const filialId = dto.filialId ?? escopo.filialId;
 
@@ -135,7 +135,7 @@ export class OrdemServicoService {
         return ordem;
       });
 
-      return this.findById(ordemServico.id, { empresaId });
+      return this.findById(ordemServico.id, { superadmin: false, empresaId });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -151,7 +151,7 @@ export class OrdemServicoService {
   }
 
   async findAll(
-    { empresaId, filialId }: EscopoOrdemServico,
+    { empresaId, filialId }: EscopoUsuario,
     page: number = 1,
     limit: number = 10,
     search: string = '',
@@ -321,7 +321,7 @@ export class OrdemServicoService {
 
   async findById(
     id: string,
-    { empresaId }: EscopoOrdemServico,
+    { empresaId }: EscopoUsuario,
   ): Promise<ResponseJson> {
     const ordemServico = await this.prisma.ordemServico.findFirst({
       where: { id, empresaId },
@@ -409,7 +409,7 @@ export class OrdemServicoService {
   async update(
     id: string,
     dto: UpdateOrdemServicoDto,
-    escopo: EscopoOrdemServico,
+    escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
     const ordemServico = await this.prisma.ordemServico.findFirst({
       where: { id, empresaId: escopo.empresaId },
@@ -468,7 +468,7 @@ export class OrdemServicoService {
 
   async deleteById(
     id: string,
-    { empresaId }: EscopoOrdemServico,
+    { empresaId }: EscopoUsuario,
   ): Promise<ResponseJson> {
     const ordemServico = await this.prisma.ordemServico.findFirst({
       where: { id, empresaId },
