@@ -729,7 +729,8 @@ model Compra {
   filialId     String
   fornecedorId String?
   dataCompra   DateTime               @default(now())
-  status       String?
+  status       StatusCompra           @default(rascunho)
+  recebidaEm   DateTime?
   valor_total  Float                  @default(0)
   observacoes  String?
   createdAt    DateTime               @default(now())
@@ -1038,6 +1039,12 @@ enum StatusOrdemServico {
   orcamento
   faturada
   finalizada
+  cancelada
+}
+
+enum StatusCompra {
+  rascunho
+  recebida
   cancelada
 }
 

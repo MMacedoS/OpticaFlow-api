@@ -22,7 +22,6 @@ import { EstoqueModule } from './app/estoque/estoque.module';
 import { EstoqueItemModule } from './app/estoque-item/estoque-item.module';
 import { MovimentoEstoqueModule } from './app/movimento-estoque/movimento-estoque.module';
 import { CompraModule } from './app/compra/compra.module';
-import { CompraItemModule } from './app/compra-item/compra-item.module';
 import { VendaModule } from './app/venda/venda.module';
 import { VendaItemModule } from './app/venda-item/venda-item.module';
 import { LaboratorioModule } from './app/laboratorio/laboratorio.module';
@@ -61,7 +60,6 @@ import { PessoaModule } from './app/pessoa/pessoa.module';
     EstoqueItemModule,
     MovimentoEstoqueModule,
     CompraModule,
-    CompraItemModule,
     VendaModule,
     VendaItemModule,
     LaboratorioModule,
