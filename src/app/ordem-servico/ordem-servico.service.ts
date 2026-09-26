@@ -1,4 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { Prisma, StatusOrdemServico } from '@prisma/client';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -7,6 +13,7 @@ import {
   UpdateOrdemServicoDto,
 } from './dto/ordem-servico.dto';
 import {
+  EscopoOrdemServico,
   OrdemServicoItemResumo,
   OrdemServicoResumo,
 } from './interfaces/ordem-servico.interface';
@@ -17,11 +24,14 @@ export class OrdemServicoService {
 
   async create(
     dto: CreateOrdemServicoDto,
-    filialIdUsuario: string,
-    empresaIdUsuario: string,
+    escopo: EscopoOrdemServico,
   ): Promise<ResponseJson> {
-    const filialId = dto.filialId ?? filialIdUsuario;
-    const empresaId = empresaIdUsuario;
+    const filialId = dto.filialId ?? escopo.filialId;
+    const { empresaId } = escopo;
+
+    if (!filialId) {
+      throw new BadRequestException('Informe a filial da ordem de servico.');
+    }
 
     const filial = await this.prisma.filial.findUnique({
       where: { id: filialId },
@@ -29,69 +39,45 @@ export class OrdemServicoService {
     });
 
     if (!filial || filial.empresaId !== empresaId) {
-      return {
-        status: 422,
-        message: 'Filial nao encontrada para a empresa informada.',
-      };
+      throw new UnprocessableEntityException(
+        'Filial nao encontrada para a empresa informada.',
+      );
     }
 
     if (dto.clienteId) {
-      const validacaoCliente = await this.validarClienteDaFilial(
-        dto.clienteId,
-        filialId,
-      );
-
-      if (!validacaoCliente.valido) {
-        return { status: 422, message: validacaoCliente.mensagem };
-      }
+      await this.validarClienteDaFilial(dto.clienteId, filialId);
     }
 
     if (dto.laboratorioId) {
-      const validacaoLaboratorio = await this.validarLaboratorioDaEmpresa(
-        dto.laboratorioId,
-        empresaId,
-      );
-
-      if (!validacaoLaboratorio.valido) {
-        return { status: 422, message: validacaoLaboratorio.mensagem };
-      }
+      await this.validarLaboratorioDaEmpresa(dto.laboratorioId, empresaId);
     }
 
     if (dto.atendimentoId) {
-      const validacaoAtendimento = await this.validarAtendimentoDaOrdemServico(
+      await this.validarAtendimentoDaOrdemServico(
         dto.atendimentoId,
         empresaId,
         filialId,
         dto.clienteId,
       );
-
-      if (!validacaoAtendimento.valido) {
-        return { status: 422, message: validacaoAtendimento.mensagem };
-      }
     }
 
-    if (dto.itens && dto.itens.length > 0) {
-      for (const item of dto.itens) {
-        if (!item.produtoId && !item.descricao_servico) {
-          return {
-            status: 422,
-            message:
-              'Cada item deve conter produtoId ou descricao_servico.',
-          };
-        }
+    for (const item of dto.itens ?? []) {
+      if (!item.produtoId && !item.descricao_servico) {
+        throw new BadRequestException(
+          'Cada item deve conter produtoId ou descricao_servico.',
+        );
+      }
 
-        if (item.produtoId) {
-          const produto = await this.prisma.produto.findUnique({
-            where: { id: item.produtoId },
-            select: { id: true, empresaId: true },
-          });
+      if (item.produtoId) {
+        const produto = await this.prisma.produto.findUnique({
+          where: { id: item.produtoId },
+          select: { id: true, empresaId: true },
+        });
 
-          if (!produto || produto.empresaId !== empresaId) {
-            return {
-              status: 422,
-              message: `Produto ${item.produtoId} nao encontrado para a empresa informada.`,
-            };
-          }
+        if (!produto || produto.empresaId !== empresaId) {
+          throw new UnprocessableEntityException(
+            `Produto ${item.produtoId} nao encontrado para a empresa informada.`,
+          );
         }
       }
     }
@@ -145,25 +131,23 @@ export class OrdemServicoService {
         return ordem;
       });
 
-      return this.findById(ordemServico.id);
+      return this.findById(ordemServico.id, empresaId);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2003'
       ) {
-        return {
-          status: 422,
-          message: 'Relacionamento invalido ao criar ordem de servico.',
-        };
+        throw new UnprocessableEntityException(
+          'Relacionamento invalido ao criar ordem de servico.',
+        );
       }
 
       throw error;
     }
   }
 
-  async findAllByFilial(
-    filialId: string,
-    empresaId: string,
+  async findAll(
+    { empresaId, filialId }: EscopoOrdemServico,
     page: number = 1,
     limit: number = 10,
     search: string = '',
@@ -174,27 +158,12 @@ export class OrdemServicoService {
     dataInicio?: string,
     dataFim?: string,
   ): Promise<ResponseJson> {
-    const filial = await this.prisma.filial.findUnique({
-      where: { id: filialId },
-      select: { id: true, empresaId: true },
-    });
-
-    if (!filial || filial.empresaId !== empresaId) {
-      return {
-        status: 422,
-        message: 'Filial nao encontrada para a empresa informada.',
-      };
-    }
-
     const statusFiltro = status
       ? this.normalizarStatusOrdemServico(status)
       : undefined;
 
     if (status && !statusFiltro) {
-      return {
-        status: 422,
-        message: 'Status de ordem de servico invalido.',
-      };
+      throw new BadRequestException('Status de ordem de servico invalido.');
     }
 
     const pageNumber = Math.max(1, page);
@@ -202,7 +171,8 @@ export class OrdemServicoService {
     const skip = (pageNumber - 1) * limitNumber;
 
     const where: Prisma.OrdemServicoWhereInput = {
-      filialId,
+      empresaId,
+      ...(filialId && { filialId }),
       ...(clienteId && { clienteId }),
       ...(atendimentoId && { atendimentoId }),
       ...(laboratorioId && { laboratorioId }),
@@ -345,9 +315,9 @@ export class OrdemServicoService {
     };
   }
 
-  async findById(id: string): Promise<ResponseJson> {
-    const ordemServico = await this.prisma.ordemServico.findUnique({
-      where: { id },
+  async findById(id: string, empresaId: string): Promise<ResponseJson> {
+    const ordemServico = await this.prisma.ordemServico.findFirst({
+      where: { id, empresaId },
       include: {
         filial: { select: { id: true, nome: true } },
         empresa: { select: { id: true, nome: true } },
@@ -419,7 +389,7 @@ export class OrdemServicoService {
     });
 
     if (!ordemServico) {
-      return { status: 422, message: 'Ordem de servico nao encontrada.' };
+      throw new NotFoundException('Ordem de servico nao encontrada.');
     }
 
     return {
@@ -429,9 +399,13 @@ export class OrdemServicoService {
     };
   }
 
-  async update(id: string, dto: UpdateOrdemServicoDto): Promise<ResponseJson> {
-    const ordemServico = await this.prisma.ordemServico.findUnique({
-      where: { id },
+  async update(
+    id: string,
+    dto: UpdateOrdemServicoDto,
+    empresaId: string,
+  ): Promise<ResponseJson> {
+    const ordemServico = await this.prisma.ordemServico.findFirst({
+      where: { id, empresaId },
       select: {
         id: true,
         empresaId: true,
@@ -441,44 +415,29 @@ export class OrdemServicoService {
     });
 
     if (!ordemServico) {
-      return { status: 422, message: 'Ordem de servico nao encontrada.' };
+      throw new NotFoundException('Ordem de servico nao encontrada.');
     }
 
     const clienteDestino = dto.clienteId ?? ordemServico.clienteId ?? undefined;
 
     if (dto.clienteId) {
-      const validacaoCliente = await this.validarClienteDaFilial(
-        dto.clienteId,
-        ordemServico.filialId,
-      );
-
-      if (!validacaoCliente.valido) {
-        return { status: 422, message: validacaoCliente.mensagem };
-      }
+      await this.validarClienteDaFilial(dto.clienteId, ordemServico.filialId);
     }
 
     if (dto.laboratorioId) {
-      const validacaoLaboratorio = await this.validarLaboratorioDaEmpresa(
+      await this.validarLaboratorioDaEmpresa(
         dto.laboratorioId,
         ordemServico.empresaId,
       );
-
-      if (!validacaoLaboratorio.valido) {
-        return { status: 422, message: validacaoLaboratorio.mensagem };
-      }
     }
 
     if (dto.atendimentoId) {
-      const validacaoAtendimento = await this.validarAtendimentoDaOrdemServico(
+      await this.validarAtendimentoDaOrdemServico(
         dto.atendimentoId,
         ordemServico.empresaId,
         ordemServico.filialId,
         clienteDestino,
       );
-
-      if (!validacaoAtendimento.valido) {
-        return { status: 422, message: validacaoAtendimento.mensagem };
-      }
     }
 
     await this.prisma.ordemServico.update({
@@ -497,12 +456,12 @@ export class OrdemServicoService {
       },
     });
 
-    return this.findById(id);
+    return this.findById(id, empresaId);
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const ordemServico = await this.prisma.ordemServico.findUnique({
-      where: { id },
+  async deleteById(id: string, empresaId: string): Promise<ResponseJson> {
+    const ordemServico = await this.prisma.ordemServico.findFirst({
+      where: { id, empresaId },
       select: {
         id: true,
         itens: {
@@ -514,15 +473,13 @@ export class OrdemServicoService {
     });
 
     if (!ordemServico) {
-      return { status: 422, message: 'Ordem de servico nao encontrada.' };
+      throw new NotFoundException('Ordem de servico nao encontrada.');
     }
 
     if (ordemServico.itens.length > 0) {
-      return {
-        status: 400,
-        message:
-          'Nao e possivel excluir ordem de servico com itens vinculados.',
-      };
+      throw new ConflictException(
+        'Nao e possivel excluir ordem de servico com itens vinculados.',
+      );
     }
 
     await this.prisma.ordemServico.delete({
@@ -586,7 +543,7 @@ export class OrdemServicoService {
   private async validarClienteDaFilial(
     clienteId: string,
     filialId: string,
-  ): Promise<{ valido: boolean; mensagem: string }> {
+  ): Promise<void> {
     const cliente = await this.prisma.cliente.findUnique({
       where: { id: clienteId },
       select: {
@@ -600,29 +557,20 @@ export class OrdemServicoService {
     });
 
     if (!cliente) {
-      return {
-        valido: false,
-        mensagem: 'Cliente nao encontrado.',
-      };
+      throw new NotFoundException('Cliente nao encontrado.');
     }
 
     if (cliente.pessoa.filialId !== filialId) {
-      return {
-        valido: false,
-        mensagem: 'Cliente nao pertence a filial informada.',
-      };
+      throw new UnprocessableEntityException(
+        'Cliente nao pertence a filial informada.',
+      );
     }
-
-    return {
-      valido: true,
-      mensagem: '',
-    };
   }
 
   private async validarLaboratorioDaEmpresa(
     laboratorioId: string,
     empresaId: string,
-  ): Promise<{ valido: boolean; mensagem: string }> {
+  ): Promise<void> {
     const laboratorio = await this.prisma.laboratorio.findUnique({
       where: { id: laboratorioId },
       select: {
@@ -632,23 +580,14 @@ export class OrdemServicoService {
     });
 
     if (!laboratorio) {
-      return {
-        valido: false,
-        mensagem: 'Laboratorio nao encontrado.',
-      };
+      throw new NotFoundException('Laboratorio nao encontrado.');
     }
 
     if (laboratorio.empresaId !== empresaId) {
-      return {
-        valido: false,
-        mensagem: 'Laboratorio nao pertence a empresa informada.',
-      };
+      throw new UnprocessableEntityException(
+        'Laboratorio nao pertence a empresa informada.',
+      );
     }
-
-    return {
-      valido: true,
-      mensagem: '',
-    };
   }
 
   private async validarAtendimentoDaOrdemServico(
@@ -656,7 +595,7 @@ export class OrdemServicoService {
     empresaId: string,
     filialId: string,
     clienteId?: string,
-  ): Promise<{ valido: boolean; mensagem: string }> {
+  ): Promise<void> {
     const atendimento = await this.prisma.atendimento.findUnique({
       where: { id: atendimentoId },
       select: {
@@ -668,20 +607,16 @@ export class OrdemServicoService {
     });
 
     if (!atendimento) {
-      return {
-        valido: false,
-        mensagem: 'Atendimento nao encontrado.',
-      };
+      throw new NotFoundException('Atendimento nao encontrado.');
     }
 
     if (
       atendimento.empresaId !== empresaId ||
       atendimento.filialId !== filialId
     ) {
-      return {
-        valido: false,
-        mensagem: 'Atendimento nao pertence a empresa/filial informada.',
-      };
+      throw new UnprocessableEntityException(
+        'Atendimento nao pertence a empresa/filial informada.',
+      );
     }
 
     if (
@@ -689,16 +624,10 @@ export class OrdemServicoService {
       atendimento.clienteId &&
       atendimento.clienteId !== clienteId
     ) {
-      return {
-        valido: false,
-        mensagem: 'Atendimento informado pertence a outro cliente.',
-      };
+      throw new UnprocessableEntityException(
+        'Atendimento informado pertence a outro cliente.',
+      );
     }
-
-    return {
-      valido: true,
-      mensagem: '',
-    };
   }
 
   private normalizarStatusOrdemServico(

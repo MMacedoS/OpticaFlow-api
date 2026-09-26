@@ -83,3 +83,13 @@ export interface OrdemServicoResumo {
   } | null;
   itens: OrdemServicoItemResumo[];
 }
+
+export interface UsuarioAutenticadoOrdemServico {
+  empresaId: string;
+  pessoa: { filialId: string | null } | null;
+}
+
+export interface EscopoOrdemServico {
+  empresaId: string;
+  filialId?: string;
+}

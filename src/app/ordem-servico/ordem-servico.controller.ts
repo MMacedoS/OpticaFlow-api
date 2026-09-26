@@ -8,6 +8,7 @@ import {
   Put,
   Query,
   UseGuards,
+  ForbiddenException,
   UseInterceptors,
 } from '@nestjs/common';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
@@ -16,6 +17,10 @@ import {
   CreateOrdemServicoDto,
   UpdateOrdemServicoDto,
 } from './dto/ordem-servico.dto';
+import type {
+  EscopoOrdemServico,
+  UsuarioAutenticadoOrdemServico,
+} from './interfaces/ordem-servico.interface';
 import { OrdemServicoService } from './ordem-servico.service';
 import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
 import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
@@ -29,21 +34,14 @@ export class OrdemServicoController {
   @Post()
   async createOrdemServico(
     @Body() dto: CreateOrdemServicoDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user: UsuarioAutenticadoOrdemServico,
   ) {
-    if (!user || !user.pessoa || !user.pessoa.filialId) {
-      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
-    }
-
-    return this.ordemServicoService.create(
-      dto,
-      user.pessoa.filialId,
-      user.empresaId,
-    );
+    return this.ordemServicoService.create(dto, this.obterEscopo(user));
   }
 
   @Get()
   async getAllByFilial(
+    @CurrentUser() user: UsuarioAutenticadoOrdemServico,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
@@ -53,15 +51,9 @@ export class OrdemServicoController {
     @Query('status') status?: string,
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
-    @CurrentUser() user?: any,
   ) {
-    if (!user || !user.pessoa || !user.pessoa.filialId) {
-      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
-    }
-
-    return this.ordemServicoService.findAllByFilial(
-      user.pessoa.filialId,
-      user.empresaId,
+    return this.ordemServicoService.findAll(
+      this.obterEscopo(user),
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 10,
       search ?? '',
@@ -75,20 +67,50 @@ export class OrdemServicoController {
   }
 
   @Get(':id')
-  async getOrdemServicoById(@Param('id') id: string) {
-    return this.ordemServicoService.findById(id);
+  async getOrdemServicoById(
+    @Param('id') id: string,
+    @CurrentUser() user: UsuarioAutenticadoOrdemServico,
+  ) {
+    return this.ordemServicoService.findById(
+      id,
+      this.obterEscopo(user).empresaId,
+    );
   }
 
   @Put(':id')
   async updateOrdemServico(
     @Param('id') id: string,
     @Body() dto: UpdateOrdemServicoDto,
+    @CurrentUser() user: UsuarioAutenticadoOrdemServico,
   ) {
-    return this.ordemServicoService.update(id, dto);
+    return this.ordemServicoService.update(
+      id,
+      dto,
+      this.obterEscopo(user).empresaId,
+    );
   }
 
   @Delete(':id')
-  async deleteOrdemServico(@Param('id') id: string) {
-    return this.ordemServicoService.deleteById(id);
+  async deleteOrdemServico(
+    @Param('id') id: string,
+    @CurrentUser() user: UsuarioAutenticadoOrdemServico,
+  ) {
+    return this.ordemServicoService.deleteById(
+      id,
+      this.obterEscopo(user).empresaId,
+    );
+  }
+
+  private obterEscopo(
+    user: UsuarioAutenticadoOrdemServico,
+  ): EscopoOrdemServico {
+    if (!user?.empresaId) {
+      throw new ForbiddenException('Usuário sem empresa vinculada.');
+    }
+
+    return {
+      empresaId: user.empresaId,
+      filialId: user.pessoa?.filialId ?? undefined,
+    };
   }
 }
