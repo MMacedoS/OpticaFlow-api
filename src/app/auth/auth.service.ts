@@ -1,5 +1,5 @@
 import { ResponseJson } from 'src/interface/response/response.interface';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsuarioService } from 'src/app/usuario/usuario.service';
 import { LoginDto } from './dto/login.dto';
@@ -20,6 +20,8 @@ interface JwtPayload {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly usuarioService: UsuarioService,
     private readonly jwtService: JwtService,
@@ -54,10 +56,7 @@ export class AuthService {
     const usuario = await this.usuarioService.findByEmail(dto.email);
 
     if (!usuario?.senha) {
-      return {
-        status: 401,
-        message: 'Usuário não encontrado, verifique os dados inseridos.',
-      };
+      throw new UnauthorizedException('E-mail ou senha inválidos.');
     }
 
     const isPasswordValid = await this.comparePassword(
@@ -66,10 +65,7 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
-      return {
-        status: 401,
-        message: 'Usuário não encontrado, verifique os dados inseridos.',
-      };
+      throw new UnauthorizedException('E-mail ou senha inválidos.');
     }
 
     const payload = {
@@ -146,8 +142,7 @@ export class AuthService {
       }
 
       return decoded;
-    } catch (error) {
-      console.error('Erro ao validar token JWT:', error);
+    } catch {
       return null;
     }
   }
@@ -159,13 +154,13 @@ export class AuthService {
       });
 
       if (decoded.type !== 'refresh') {
-        return { status: 401, message: 'Token de refresh inválido.' };
+        throw new UnauthorizedException('Token de refresh inválido.');
       }
 
       const usuario = await this.usuarioService.findById(decoded.sub);
 
       if (!usuario) {
-        return { status: 401, message: 'Usuário não encontrado.' };
+        throw new UnauthorizedException('Usuário não encontrado.');
       }
 
       const payload = {
@@ -199,8 +194,12 @@ export class AuthService {
         },
       };
     } catch (error) {
-      console.error('Erro ao renovar token de acesso:', error);
-      return { status: 401, message: 'Token de refresh inválido ou expirado.' };
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      this.logger.warn(`Falha ao renovar token: ${(error as Error).message}`);
+      throw new UnauthorizedException('Token de refresh inválido ou expirado.');
     }
   }
 
