@@ -5,11 +5,17 @@ import { PrismaModule } from 'src/prisma/prisma.module';
 import { ProdutoController } from './produto.controller';
 import { ProdutoService } from './produto.service';
 import { UsuarioModule } from '../usuario/usuario.module';
+import { MovimentoEstoqueModule } from '../movimento-estoque/movimento-estoque.module';
 
 @Module({
   providers: [ProdutoService, AcessoGuard],
   controllers: [ProdutoController],
-  imports: [forwardRef(() => AuthModule), PrismaModule, UsuarioModule],
+  imports: [
+    forwardRef(() => AuthModule),
+    PrismaModule,
+    UsuarioModule,
+    MovimentoEstoqueModule,
+  ],
   exports: [ProdutoService],
 })
 export class ProdutoModule {}

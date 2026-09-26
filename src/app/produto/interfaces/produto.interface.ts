@@ -1,16 +1,9 @@
-import { TipoProduto } from '@prisma/client';
+import { Status, TipoProduto } from '@prisma/client';
 
-export interface ProdutoResumo {
-  id: string;
-  empresaId: string;
-  nome: string;
-  sku: string;
-  tipo: TipoProduto;
-  categoria: string | null;
-  descricao: string | null;
-  preco_custo: number | null;
-  preco_venda: number;
-  ativo: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+export interface FiltroProduto {
+  page: number;
+  limit: number;
+  search: string;
+  tipo?: TipoProduto;
+  ativo?: Status;
 }
