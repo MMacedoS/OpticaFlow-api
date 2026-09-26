@@ -13,9 +13,7 @@ export class UsuarioService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateUsuarioDto): Promise<ResponseJson> {
-    const usuarioExistente = await this.prisma.usuario.findUnique({
-      where: { email: dto.email },
-    });
+    const usuarioExistente = await this.findByEmail(dto.email);
 
     if (usuarioExistente) {
       return { status: 400, message: 'Usuário já existe com este email.' };
@@ -39,7 +37,7 @@ export class UsuarioService {
       usuario = await this.prisma.$transaction(async (tx) => {
         const novoUsuario = await tx.usuario.create({
           data: {
-            email: dto.email,
+            email: dto.email.trim().toLowerCase(),
             senha: passwordHash,
             username: dto.username,
             pessoaId: dto.pessoaId,
@@ -101,8 +99,8 @@ export class UsuarioService {
   }
 
   async findByEmail(email: string): Promise<any> {
-    return this.prisma.usuario.findUnique({
-      where: { email },
+    return this.prisma.usuario.findFirst({
+      where: { email: { equals: email.trim(), mode: 'insensitive' } },
     });
   }
 
