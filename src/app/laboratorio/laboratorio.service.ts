@@ -1,117 +1,80 @@
-import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { Laboratorio, Prisma } from '@prisma/client';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   CreateLaboratorioDto,
   UpdateLaboratorioDto,
 } from './dto/laboratorio.dto';
-import { LaboratorioResumo } from './interfaces/laboratorio.interface';
+import {
+  FiltroLaboratorio,
+  LaboratorioResumo,
+} from './interfaces/laboratorio.interface';
 
 @Injectable()
 export class LaboratorioService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateLaboratorioDto): Promise<ResponseJson> {
-    const empresa = await this.prisma.empresa.findUnique({
-      where: { id: dto.empresaId },
-      select: { id: true },
-    });
+  async create(
+    dto: CreateLaboratorioDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const empresaId = await this.resolverEmpresa(dto.empresaId, escopo);
 
-    if (!empresa) {
-      return { status: 422, message: 'Empresa não encontrada.' };
-    }
+    await this.garantirNomeDisponivel(empresaId, dto.nome);
 
-    const laboratorioExistente = await this.prisma.laboratorio.findFirst({
-      where: {
-        empresaId: dto.empresaId,
-        nome: { equals: dto.nome, mode: 'insensitive' },
+    const laboratorio = await this.prisma.laboratorio.create({
+      data: {
+        empresaId,
+        nome: dto.nome,
+        cnpj: dto.cnpj,
+        email: dto.email,
+        telefone: dto.telefone,
+        ativo: dto.ativo ?? true,
       },
-      select: { id: true },
     });
 
-    if (laboratorioExistente) {
-      return {
-        status: 400,
-        message: 'Já existe um laboratório com este nome para esta empresa.',
-      };
-    }
-
-    try {
-      const laboratorio = await this.prisma.laboratorio.create({
-        data: {
-          empresaId: dto.empresaId,
-          nome: dto.nome,
-          cnpj: dto.cnpj,
-          email: dto.email,
-          telefone: dto.telefone,
-          ativo: dto.ativo ?? true,
-        },
-      });
-
-      return {
-        status: 201,
-        message: 'Laboratório criado com sucesso.',
-        data: laboratorio,
-      };
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        return {
-          status: 422,
-          message: 'Laboratório já existe com estes dados.',
-        };
-      }
-
-      throw error;
-    }
+    return {
+      status: 201,
+      message: 'Laboratório criado com sucesso.',
+      data: this.mapResumo(laboratorio),
+    };
   }
 
-  async findAllByEmpresa(
-    empresaId: string,
-    page: number = 1,
-    limit: number = 10,
-    search: string = '',
-    ativo?: boolean,
+  async findAll(
+    escopo: EscopoUsuario,
+    filtro: FiltroLaboratorio,
   ): Promise<ResponseJson> {
-    const empresa = await this.prisma.empresa.findUnique({
-      where: { id: empresaId },
-      select: { id: true },
-    });
-
-    if (!empresa) {
-      return { status: 422, message: 'Empresa não encontrada.' };
-    }
-
-    const pageNumber = Math.max(1, page);
-    const limitNumber = Math.max(1, limit);
-    const skip = (pageNumber - 1) * limitNumber;
+    const page = Math.max(1, filtro.page);
+    const limit = Math.max(1, filtro.limit);
+    const search = filtro.search.trim();
 
     const where: Prisma.LaboratorioWhereInput = {
-      empresaId,
-      ...(typeof ativo === 'boolean' && { ativo }),
-      ...(search
-        ? {
-            OR: [
-              { nome: { contains: search, mode: 'insensitive' } },
-              { cnpj: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } },
-              { telefone: { contains: search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
+      ...(escopo.empresaId && { empresaId: escopo.empresaId }),
+      ...(typeof filtro.ativo === 'boolean' && { ativo: filtro.ativo }),
+      ...(search && {
+        OR: [
+          { nome: { contains: search, mode: 'insensitive' } },
+          { cnpj: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { telefone: { contains: search, mode: 'insensitive' } },
+        ],
+      }),
     };
 
     const [laboratorios, total] = await this.prisma.$transaction([
       this.prisma.laboratorio.findMany({
-        skip,
-        take: limitNumber,
+        skip: (page - 1) * limit,
+        take: limit,
         where,
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: { nome: 'asc' },
       }),
       this.prisma.laboratorio.count({ where }),
     ]);
@@ -120,64 +83,38 @@ export class LaboratorioService {
       status: 200,
       message: 'Laboratórios listados com sucesso.',
       data: {
-        laboratories: laboratorios.map((laboratorio) =>
+        laboratorios: laboratorios.map((laboratorio) =>
           this.mapResumo(laboratorio),
         ),
         pagination: {
           total,
-          page: pageNumber,
-          limit: limitNumber,
-          totalPages: Math.ceil(total / limitNumber),
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
         },
       },
     };
   }
 
-  async findById(id: string): Promise<ResponseJson> {
-    const laboratorio = await this.prisma.laboratorio.findUnique({
-      where: { id },
-    });
-
-    if (!laboratorio) {
-      return { status: 422, message: 'Laboratório não encontrado.' };
-    }
+  async findById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const laboratorio = await this.buscarNoEscopo(id, escopo);
 
     return {
       status: 200,
       message: 'Laboratório encontrado.',
-      data: laboratorio,
+      data: this.mapResumo(laboratorio),
     };
   }
 
-  async update(id: string, dto: UpdateLaboratorioDto): Promise<ResponseJson> {
-    const laboratorio = await this.prisma.laboratorio.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        empresaId: true,
-        nome: true,
-      },
-    });
-
-    if (!laboratorio) {
-      return { status: 422, message: 'Laboratório não encontrado.' };
-    }
+  async update(
+    id: string,
+    dto: UpdateLaboratorioDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const laboratorio = await this.buscarNoEscopo(id, escopo);
 
     if (dto.nome && dto.nome.toLowerCase() !== laboratorio.nome.toLowerCase()) {
-      const laboratorioComNome = await this.prisma.laboratorio.findFirst({
-        where: {
-          empresaId: laboratorio.empresaId,
-          nome: { equals: dto.nome, mode: 'insensitive' },
-        },
-        select: { id: true },
-      });
-
-      if (laboratorioComNome && laboratorioComNome.id !== laboratorio.id) {
-        return {
-          status: 400,
-          message: 'Já existe um laboratório com este nome para esta empresa.',
-        };
-      }
+      await this.garantirNomeDisponivel(laboratorio.empresaId, dto.nome, id);
     }
 
     const laboratorioAtualizado = await this.prisma.laboratorio.update({
@@ -194,37 +131,24 @@ export class LaboratorioService {
     return {
       status: 200,
       message: 'Laboratório atualizado com sucesso.',
-      data: laboratorioAtualizado,
+      data: this.mapResumo(laboratorioAtualizado),
     };
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const laboratorio = await this.prisma.laboratorio.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        ordens_servico: {
-          select: { id: true },
-          take: 1,
-        },
-      },
+  async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    await this.buscarNoEscopo(id, escopo);
+
+    const ordensVinculadas = await this.prisma.ordemServico.count({
+      where: { laboratorioId: id },
     });
 
-    if (!laboratorio) {
-      return { status: 422, message: 'Laboratório não encontrado.' };
+    if (ordensVinculadas > 0) {
+      throw new ConflictException(
+        'Não é possível excluir laboratório com ordens de serviço vinculadas. Inative-o.',
+      );
     }
 
-    if (laboratorio.ordens_servico.length > 0) {
-      return {
-        status: 400,
-        message:
-          'Não é possível excluir laboratório com ordens de serviço vinculadas.',
-      };
-    }
-
-    await this.prisma.laboratorio.delete({
-      where: { id },
-    });
+    await this.prisma.laboratorio.delete({ where: { id } });
 
     return {
       status: 200,
@@ -232,7 +156,67 @@ export class LaboratorioService {
     };
   }
 
-  private mapResumo(laboratorio: LaboratorioResumo): LaboratorioResumo {
+  private async buscarNoEscopo(
+    id: string,
+    escopo: EscopoUsuario,
+  ): Promise<Laboratorio> {
+    const laboratorio = await this.prisma.laboratorio.findFirst({
+      where: { id, ...(escopo.empresaId && { empresaId: escopo.empresaId }) },
+    });
+
+    if (!laboratorio) {
+      throw new NotFoundException('Laboratório não encontrado.');
+    }
+
+    return laboratorio;
+  }
+
+  private async resolverEmpresa(
+    empresaIdInformada: string | undefined,
+    escopo: EscopoUsuario,
+  ): Promise<string> {
+    if (escopo.empresaId) {
+      return escopo.empresaId;
+    }
+
+    if (!empresaIdInformada) {
+      throw new BadRequestException('Informe a empresa do laboratório.');
+    }
+
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { id: empresaIdInformada },
+      select: { id: true },
+    });
+
+    if (!empresa) {
+      throw new UnprocessableEntityException('Empresa não encontrada.');
+    }
+
+    return empresa.id;
+  }
+
+  private async garantirNomeDisponivel(
+    empresaId: string,
+    nome: string,
+    ignorarId?: string,
+  ): Promise<void> {
+    const existente = await this.prisma.laboratorio.findFirst({
+      where: {
+        empresaId,
+        nome: { equals: nome, mode: 'insensitive' },
+        ...(ignorarId && { NOT: { id: ignorarId } }),
+      },
+      select: { id: true },
+    });
+
+    if (existente) {
+      throw new ConflictException(
+        'Já existe um laboratório com este nome nesta empresa.',
+      );
+    }
+  }
+
+  private mapResumo(laboratorio: Laboratorio): LaboratorioResumo {
     return {
       id: laboratorio.id,
       empresaId: laboratorio.empresaId,

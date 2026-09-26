@@ -9,9 +9,9 @@ import {
 } from 'class-validator';
 
 export class CreateLaboratorioDto {
+  @IsOptional()
   @IsString({ message: 'O empresaId deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'O empresaId é obrigatório.' })
-  empresaId!: string;
+  empresaId?: string;
 
   @IsString({ message: 'O nome deve ser um texto válido.' })
   @IsNotEmpty({ message: 'O nome é obrigatório.' })

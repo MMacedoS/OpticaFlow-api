@@ -9,3 +9,10 @@ export interface LaboratorioResumo {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface FiltroLaboratorio {
+  page: number;
+  limit: number;
+  search: string;
+  ativo?: boolean;
+}
