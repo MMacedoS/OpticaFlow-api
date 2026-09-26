@@ -1,5 +1,16 @@
 import { StatusAgenda, StatusAtendimento } from '@prisma/client';
 
+export interface FiltroAtendimento {
+  page: number;
+  limit: number;
+  search: string;
+  status?: StatusAtendimento;
+  profissionalId?: string;
+  pacienteId?: string;
+  dataInicio?: string;
+  dataFim?: string;
+}
+
 export interface Atendimento {
   id: string;
   empresaId: string;
@@ -68,4 +79,5 @@ export interface AtendimentoResumo {
     nome: string;
     registro: string | null;
   } | null;
+  prontuarioId: string | null;
 }

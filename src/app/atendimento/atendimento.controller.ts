@@ -1,9 +1,11 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
   Get,
   Param,
+  ParseEnumPipe,
   Patch,
   Post,
   Put,
@@ -12,15 +14,28 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { StatusAtendimento } from '@prisma/client';
+import { Escopo } from 'src/common/escopo/escopo.decorator';
+import type { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
+import { AtendimentoService } from './atendimento.service';
 import {
   CreateAtendimentoDto,
   UpdateAtendimentoDto,
 } from './dto/atendimento.dto';
-import { AtendimentoService } from './atendimento.service';
-import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
-import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
+
+const statusInvalido = () =>
+  new BadRequestException('Status de atendimento inválido.');
+
+const statusOpcionalPipe = new ParseEnumPipe(StatusAtendimento, {
+  optional: true,
+  exceptionFactory: statusInvalido,
+});
+
+const statusObrigatorioPipe = new ParseEnumPipe(StatusAtendimento, {
+  exceptionFactory: statusInvalido,
+});
 
 @Controller('atendimento')
 @UseGuards(AuthGuard, AcessoGuard)
@@ -31,70 +46,66 @@ export class AtendimentoController {
   @Post()
   async createAtendimento(
     @Body() dto: CreateAtendimentoDto,
-    @CurrentUser() user?: any,
+    @Escopo() escopo: EscopoUsuario,
   ) {
-    if (!user || !user.pessoa || !user.pessoa.filialId) {
-      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
-    }
-
-    dto.filialId = user.pessoa.filialId;
-    return this.atendimentoService.create(dto);
+    return this.atendimentoService.create(dto, escopo);
   }
 
   @Get()
-  async getAllByFilial(
+  async getAll(
+    @Escopo() escopo: EscopoUsuario,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
-    @Query('status') status?: StatusAtendimento,
+    @Query('status', statusOpcionalPipe) status?: StatusAtendimento,
     @Query('profissionalId') profissionalId?: string,
     @Query('pacienteId') pacienteId?: string,
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
-    @CurrentUser() user?: any,
   ) {
-    if (!user || !user.pessoa || !user.pessoa.filialId) {
-      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
-    }
-
-    const atendimentos = await this.atendimentoService.findAllByFilial(
-      user.pessoa.filialId,
-      page ? parseInt(page, 10) : 1,
-      limit ? parseInt(limit, 10) : 10,
-      search ?? '',
+    return this.atendimentoService.findAll(escopo, {
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 10,
+      search: search ?? '',
       status,
       profissionalId,
       pacienteId,
       dataInicio,
       dataFim,
-    );
-
-    return atendimentos;
+    });
   }
 
   @Get(':id')
-  async getAtendimentoById(@Param('id') id: string) {
-    return this.atendimentoService.findById(id);
+  async getAtendimentoById(
+    @Param('id') id: string,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.atendimentoService.findById(id, escopo);
   }
 
   @Put(':id')
   async updateAtendimento(
     @Param('id') id: string,
     @Body() dto: UpdateAtendimentoDto,
+    @Escopo() escopo: EscopoUsuario,
   ) {
-    return this.atendimentoService.update(id, dto);
+    return this.atendimentoService.update(id, dto, escopo);
   }
 
   @Patch(':id/status')
   async updateAtendimentoStatus(
     @Param('id') id: string,
-    @Body('status') status: StatusAtendimento,
+    @Body('status', statusObrigatorioPipe) status: StatusAtendimento,
+    @Escopo() escopo: EscopoUsuario,
   ) {
-    return this.atendimentoService.updateStatus(id, status);
+    return this.atendimentoService.updateStatus(id, status, escopo);
   }
 
   @Delete(':id')
-  async deleteAtendimento(@Param('id') id: string) {
-    return this.atendimentoService.deleteById(id);
+  async deleteAtendimento(
+    @Param('id') id: string,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.atendimentoService.deleteById(id, escopo);
   }
 }

@@ -1,82 +1,86 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { Prisma, StatusAtendimento } from '@prisma/client';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { prepareNumeroOrdemServico } from 'src/utils/validator';
 import {
   CreateAtendimentoDto,
   UpdateAtendimentoDto,
 } from './dto/atendimento.dto';
-import { AtendimentoResumo } from './interfaces/atendimento.interface';
-import { prepareNumeroOrdemServico } from 'src/utils/validator';
+import {
+  AtendimentoResumo,
+  FiltroAtendimento,
+} from './interfaces/atendimento.interface';
+
+const ATENDIMENTO_INCLUDE = {
+  agenda: { select: { id: true, dataHora: true, status: true } },
+  paciente: { select: { id: true, nome: true, email: true, cpf: true } },
+  profissional: {
+    select: {
+      id: true,
+      email: true,
+      username: true,
+      pessoa: {
+        select: {
+          id: true,
+          nome: true,
+          optometrista: { select: { id: true } },
+          oftalmologista: { select: { id: true } },
+        },
+      },
+    },
+  },
+  cliente: {
+    select: {
+      id: true,
+      numero_convenio: true,
+      pessoa: { select: { id: true, nome: true, email: true, cpf: true } },
+    },
+  },
+  convenio: { select: { id: true, nome: true, registro: true } },
+  prontuario: { select: { id: true } },
+} satisfies Prisma.AtendimentoInclude;
+
+type AtendimentoCompleto = Prisma.AtendimentoGetPayload<{
+  include: typeof ATENDIMENTO_INCLUDE;
+}>;
 
 @Injectable()
 export class AtendimentoService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateAtendimentoDto): Promise<ResponseJson> {
-    const filial = await this.prisma.filial.findUnique({
-      where: { id: dto.filialId },
-      select: { id: true, empresaId: true },
-    });
-
-    if (!filial) {
-      return {
-        status: 422,
-        message: 'Filial não encontrada para a empresa informada.',
-      };
-    }
-
-    const validacaoPaciente = await this.validarPaciente(
-      dto.pacienteId,
-      filial.id,
+  async create(
+    dto: CreateAtendimentoDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const filial = await this.resolverFilial(
+      dto.filialId ?? escopo.filialId,
+      escopo,
     );
 
-    if (!validacaoPaciente.valido) {
-      return { status: 422, message: validacaoPaciente.mensagem };
-    }
+    await this.validarPaciente(dto.pacienteId, filial.id);
 
     if (dto.profissionalId) {
-      const validacaoProfissional = await this.validarProfissional(
+      await this.validarProfissional(
         dto.profissionalId,
         filial.empresaId,
         filial.id,
       );
-
-      if (!validacaoProfissional.valido) {
-        return {
-          status: 422,
-          message: validacaoProfissional.mensagem,
-        };
-      }
     }
 
     if (dto.clienteId) {
-      const validacaoCliente = await this.validarCliente(
-        dto.clienteId,
-        filial.id,
-        dto.convenioId,
-      );
-
-      if (!validacaoCliente.valido) {
-        return {
-          status: 422,
-          message: validacaoCliente.mensagem,
-        };
-      }
+      await this.validarCliente(dto.clienteId, filial.id, dto.convenioId);
     }
 
     if (dto.convenioId) {
-      const validacaoConvenio = await this.validarConvenio(
-        dto.convenioId,
-        filial.empresaId,
-      );
-
-      if (!validacaoConvenio.valido) {
-        return {
-          status: 422,
-          message: validacaoConvenio.mensagem,
-        };
-      }
+      await this.validarConvenio(dto.convenioId, filial.empresaId);
     }
 
     try {
@@ -108,7 +112,6 @@ export class AtendimentoService {
             filialId: filial.id,
             clienteId: dto.clienteId || null,
             atendimentoId: atend.id,
-
             numero: prepareNumeroOrdemServico(),
             data_entrega: dto.dataAtendimento
               ? new Date(dto.dataAtendimento)
@@ -131,156 +134,64 @@ export class AtendimentoService {
             })),
           });
         }
+
         return atend;
       });
 
-      return this.findById(atendimento.id);
+      return this.findById(
+        atendimento.id,
+        escopo,
+        'Atendimento criado com sucesso.',
+        201,
+      );
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        return {
-          status: 422,
-          message: 'Já existe atendimento vinculado para esta agenda.',
-        };
-      }
-
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2003'
-      ) {
-        return {
-          status: 422,
-          message: 'Relacionamento inválido ao criar atendimento.',
-        };
-      }
-
-      throw error;
+      this.tratarErroPrisma(error);
     }
   }
 
-  async findAllByFilial(
-    filialId: string,
-    page: number = 1,
-    limit: number = 10,
-    search: string = '',
-    status?: StatusAtendimento,
-    profissionalId?: string,
-    pacienteId?: string,
-    dataInicio?: string,
-    dataFim?: string,
+  async findAll(
+    escopo: EscopoUsuario,
+    filtro: FiltroAtendimento,
   ): Promise<ResponseJson> {
-    const pageNumber = Math.max(1, page);
-    const limitNumber = Math.max(1, limit);
-    const skip = (pageNumber - 1) * limitNumber;
+    const page = Math.max(1, filtro.page);
+    const limit = Math.max(1, filtro.limit);
+    const search = filtro.search.trim();
 
     const where: Prisma.AtendimentoWhereInput = {
-      filialId,
-      ...(status && { status }),
-      ...(profissionalId && { profissionalId }),
-      ...(pacienteId && { pacienteId }),
-      ...(dataInicio || dataFim
-        ? {
-            dataAtendimento: {
-              ...(dataInicio && { gte: new Date(dataInicio) }),
-              ...(dataFim && { lte: new Date(dataFim) }),
+      ...(escopo.empresaId && { empresaId: escopo.empresaId }),
+      ...(escopo.filialId && { filialId: escopo.filialId }),
+      ...(filtro.status && { status: filtro.status }),
+      ...(filtro.profissionalId && { profissionalId: filtro.profissionalId }),
+      ...(filtro.pacienteId && { pacienteId: filtro.pacienteId }),
+      ...((filtro.dataInicio || filtro.dataFim) && {
+        dataAtendimento: {
+          ...(filtro.dataInicio && { gte: new Date(filtro.dataInicio) }),
+          ...(filtro.dataFim && { lte: new Date(filtro.dataFim) }),
+        },
+      }),
+      ...(search && {
+        OR: [
+          { paciente: { nome: { contains: search, mode: 'insensitive' } } },
+          {
+            cliente: {
+              is: {
+                pessoa: { nome: { contains: search, mode: 'insensitive' } },
+              },
             },
-          }
-        : {}),
-      ...(search
-        ? {
-            OR: [
-              {
-                paciente: {
-                  nome: { contains: search, mode: 'insensitive' },
-                },
-              },
-              {
-                cliente: {
-                  is: {
-                    pessoa: {
-                      nome: { contains: search, mode: 'insensitive' },
-                    },
-                  },
-                },
-              },
-              {
-                observacoes: { contains: search, mode: 'insensitive' },
-              },
-              {
-                queixa_principal: { contains: search, mode: 'insensitive' },
-              },
-            ],
-          }
-        : {}),
+          },
+          { observacoes: { contains: search, mode: 'insensitive' } },
+          { queixa_principal: { contains: search, mode: 'insensitive' } },
+        ],
+      }),
     };
 
     const [atendimentos, total] = await this.prisma.$transaction([
       this.prisma.atendimento.findMany({
-        skip,
-        take: limitNumber,
+        skip: (page - 1) * limit,
+        take: limit,
         where,
-        include: {
-          agenda: {
-            select: {
-              id: true,
-              dataHora: true,
-              status: true,
-            },
-          },
-          paciente: {
-            select: {
-              id: true,
-              nome: true,
-              email: true,
-              cpf: true,
-            },
-          },
-          profissional: {
-            select: {
-              id: true,
-              email: true,
-              username: true,
-              pessoa: {
-                select: {
-                  id: true,
-                  nome: true,
-                  optometrista: {
-                    select: { id: true },
-                  },
-                  oftalmologista: {
-                    select: { id: true },
-                  },
-                },
-              },
-            },
-          },
-          cliente: {
-            select: {
-              id: true,
-              numero_convenio: true,
-              pessoa: {
-                select: {
-                  id: true,
-                  nome: true,
-                  email: true,
-                  cpf: true,
-                },
-              },
-            },
-          },
-          convenio: {
-            select: {
-              id: true,
-              nome: true,
-              registro: true,
-            },
-          },
-        },
-        orderBy: {
-          dataAtendimento: 'desc',
-        },
+        include: ATENDIMENTO_INCLUDE,
+        orderBy: { dataAtendimento: 'desc' },
       }),
       this.prisma.atendimento.count({ where }),
     ]);
@@ -293,98 +204,40 @@ export class AtendimentoService {
           this.mapResumo(atendimento),
         ),
         pagination: {
-          page: pageNumber,
-          limit: limitNumber,
-          total: total,
-          totalPages: Math.ceil(total / limitNumber),
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
         },
       },
     };
   }
 
-  async findById(id: string): Promise<ResponseJson> {
-    const atendimento = await this.prisma.atendimento.findUnique({
-      where: { id },
-      include: {
-        agenda: {
-          select: {
-            id: true,
-            dataHora: true,
-            status: true,
-          },
-        },
-        paciente: {
-          select: {
-            id: true,
-            nome: true,
-            email: true,
-            cpf: true,
-          },
-        },
-        profissional: {
-          select: {
-            id: true,
-            email: true,
-            username: true,
-            pessoa: {
-              select: {
-                id: true,
-                nome: true,
-                optometrista: {
-                  select: { id: true },
-                },
-                oftalmologista: {
-                  select: { id: true },
-                },
-              },
-            },
-          },
-        },
-        cliente: {
-          select: {
-            id: true,
-            numero_convenio: true,
-            pessoa: {
-              select: {
-                id: true,
-                nome: true,
-                email: true,
-                cpf: true,
-              },
-            },
-          },
-        },
-        convenio: {
-          select: {
-            id: true,
-            nome: true,
-            registro: true,
-          },
-        },
-      },
+  async findById(
+    id: string,
+    escopo: EscopoUsuario,
+    message = 'Atendimento encontrado.',
+    status = 200,
+  ): Promise<ResponseJson> {
+    const atendimento = await this.prisma.atendimento.findFirst({
+      where: { id, ...this.filtroEmpresa(escopo) },
+      include: ATENDIMENTO_INCLUDE,
     });
 
     if (!atendimento) {
-      return { status: 422, message: 'Atendimento não encontrado.' };
+      throw new NotFoundException('Atendimento não encontrado.');
     }
 
-    return {
-      status: 200,
-      message: 'Atendimento encontrado.',
-      data: this.mapResumo(atendimento),
-    };
+    return { status, message, data: this.mapResumo(atendimento) };
   }
 
-  async update(id: string, dto: UpdateAtendimentoDto): Promise<ResponseJson> {
-    const atendimento = await this.prisma.atendimento.findUnique({
-      where: { id },
-    });
+  async update(
+    id: string,
+    dto: UpdateAtendimentoDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const atendimento = await this.buscarNoEscopo(id, escopo);
 
-    if (!atendimento) {
-      return { status: 422, message: 'Atendimento não encontrado.' };
-    }
-
-    const filialIdDestino = dto.filialId ?? atendimento.filialId;
     const agendaIdDestino = dto.agendaId ?? atendimento.agendaId;
     const pacienteIdDestino = dto.pacienteId ?? atendimento.pacienteId;
     const profissionalIdDestino =
@@ -392,90 +245,38 @@ export class AtendimentoService {
     const clienteIdDestino = dto.clienteId ?? atendimento.clienteId;
     const convenioIdDestino = dto.convenioId ?? atendimento.convenioId;
 
-    const filial = await this.prisma.filial.findUnique({
-      where: { id: filialIdDestino },
-      select: { id: true, empresaId: true },
-    });
-
-    if (!filial) {
-      return {
-        status: 422,
-        message: 'Filial não encontrada para a empresa informada.',
-      };
-    }
-
-    const validacaoPaciente = await this.validarPaciente(
-      pacienteIdDestino,
-      filialIdDestino,
+    const filial = await this.resolverFilial(
+      dto.filialId ?? atendimento.filialId,
+      escopo,
     );
 
-    if (!validacaoPaciente.valido) {
-      return {
-        status: 422,
-        message: validacaoPaciente.mensagem,
-      };
-    }
+    await this.validarPaciente(pacienteIdDestino, filial.id);
 
     if (profissionalIdDestino) {
-      const validacaoProfissional = await this.validarProfissional(
+      await this.validarProfissional(
         profissionalIdDestino,
         filial.empresaId,
-        filialIdDestino,
+        filial.id,
       );
-
-      if (!validacaoProfissional.valido) {
-        return {
-          status: 422,
-          message: validacaoProfissional.mensagem,
-        };
-      }
     }
 
     if (agendaIdDestino) {
-      const validacaoAgenda = await this.validarAgenda(
+      await this.validarAgenda(
         agendaIdDestino,
         filial.empresaId,
-        filialIdDestino,
+        filial.id,
         pacienteIdDestino,
         profissionalIdDestino,
         id,
       );
-
-      if (!validacaoAgenda.valido) {
-        return {
-          status: 422,
-          message: validacaoAgenda.mensagem,
-        };
-      }
     }
 
     if (clienteIdDestino) {
-      const validacaoCliente = await this.validarCliente(
-        clienteIdDestino,
-        filialIdDestino,
-        convenioIdDestino,
-      );
-
-      if (!validacaoCliente.valido) {
-        return {
-          status: 422,
-          message: validacaoCliente.mensagem,
-        };
-      }
+      await this.validarCliente(clienteIdDestino, filial.id, convenioIdDestino);
     }
 
     if (convenioIdDestino) {
-      const validacaoConvenio = await this.validarConvenio(
-        convenioIdDestino,
-        filial.empresaId,
-      );
-
-      if (!validacaoConvenio.valido) {
-        return {
-          status: 422,
-          message: validacaoConvenio.mensagem,
-        };
-      }
+      await this.validarConvenio(convenioIdDestino, filial.empresaId);
     }
 
     try {
@@ -495,130 +296,152 @@ export class AtendimentoService {
           observacoes: dto.observacoes,
         },
       });
-
-      return this.findById(id);
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        return {
-          status: 422,
-          message: 'Já existe atendimento vinculado para esta agenda.',
-        };
-      }
-
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2003'
-      ) {
-        return {
-          status: 422,
-          message: 'Relacionamento inválido ao atualizar atendimento.',
-        };
-      }
-
-      throw error;
+      this.tratarErroPrisma(error);
     }
+
+    return this.findById(id, escopo, 'Atendimento atualizado com sucesso.');
   }
 
   async updateStatus(
     id: string,
     status: StatusAtendimento,
+    escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
-    const atendimento = await this.prisma.atendimento.findUnique({
-      where: { id },
-    });
+    await this.buscarNoEscopo(id, escopo);
 
-    if (!atendimento) {
-      return { status: 422, message: 'Atendimento não encontrado.' };
-    }
-    return await this.prisma.$transaction(async (tx) => {
-      const updatedAtendimento = await tx.atendimento.update({
+    const atendimento = await this.prisma.$transaction(async (tx) => {
+      const atualizado = await tx.atendimento.update({
         where: { id },
         data: { status },
       });
 
-      if (!updatedAtendimento) {
-        return {
-          status: 422,
-          message: 'Falha ao atualizar o status do atendimento.',
-        };
-      }
+      const statusAgenda =
+        status === StatusAtendimento.concluido ||
+        status === StatusAtendimento.cancelado
+          ? status
+          : null;
 
-      if (status === 'concluido' && updatedAtendimento.agendaId) {
+      if (statusAgenda && atualizado.agendaId) {
         await tx.agenda.update({
-          where: { id: updatedAtendimento.agendaId },
-          data: { status: 'concluido' },
+          where: { id: atualizado.agendaId },
+          data: { status: statusAgenda },
         });
       }
 
-      if (status === 'cancelado' && updatedAtendimento.agendaId) {
-        await tx.agenda.update({
-          where: { id: updatedAtendimento.agendaId },
-          data: { status: 'cancelado' },
-        });
-      }
-
-      return {
-        status: 200,
-        message: 'Status do atendimento atualizado com sucesso.',
-        data: updatedAtendimento,
-      };
+      return atualizado;
     });
+
+    return {
+      status: 200,
+      message: 'Status do atendimento atualizado com sucesso.',
+      data: atendimento,
+    };
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const atendimento = await this.prisma.atendimento.findUnique({
-      where: { id },
-      select: { id: true },
+  async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    await this.buscarNoEscopo(id, escopo);
+
+    const [prontuarios, ordens] = await this.prisma.$transaction([
+      this.prisma.prontuario.count({ where: { atendimentoId: id } }),
+      this.prisma.ordemServico.count({ where: { atendimentoId: id } }),
+    ]);
+
+    if (prontuarios > 0 || ordens > 0) {
+      throw new ConflictException(
+        'Não é possível excluir atendimento com prontuário ou ordem de serviço. Cancele-o.',
+      );
+    }
+
+    await this.prisma.atendimento.delete({ where: { id } });
+
+    return { status: 200, message: 'Atendimento deletado com sucesso.' };
+  }
+
+  private filtroEmpresa(escopo: EscopoUsuario): Prisma.AtendimentoWhereInput {
+    return escopo.empresaId ? { empresaId: escopo.empresaId } : {};
+  }
+
+  private async buscarNoEscopo(id: string, escopo: EscopoUsuario) {
+    const atendimento = await this.prisma.atendimento.findFirst({
+      where: { id, ...this.filtroEmpresa(escopo) },
     });
 
     if (!atendimento) {
-      return { status: 422, message: 'Atendimento não encontrado.' };
+      throw new NotFoundException('Atendimento não encontrado.');
     }
 
-    await this.prisma.atendimento.delete({
-      where: { id },
+    return atendimento;
+  }
+
+  private async resolverFilial(
+    filialId: string | undefined,
+    escopo: EscopoUsuario,
+  ): Promise<{ id: string; empresaId: string }> {
+    if (!filialId) {
+      throw new BadRequestException('Informe a filial do atendimento.');
+    }
+
+    const filial = await this.prisma.filial.findUnique({
+      where: { id: filialId },
+      select: { id: true, empresaId: true },
     });
 
-    return { status: 200, message: 'Atendimento deletado com sucesso.' };
+    if (
+      !filial ||
+      (escopo.empresaId && filial.empresaId !== escopo.empresaId)
+    ) {
+      throw new UnprocessableEntityException(
+        'Filial não encontrada para a empresa informada.',
+      );
+    }
+
+    return filial;
+  }
+
+  private tratarErroPrisma(error: unknown): never {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') {
+        throw new ConflictException(
+          'Já existe atendimento vinculado para esta agenda.',
+        );
+      }
+
+      if (error.code === 'P2003') {
+        throw new UnprocessableEntityException(
+          'Relacionamento inválido no atendimento.',
+        );
+      }
+    }
+
+    throw error;
   }
 
   private async validarPaciente(
     pacienteId: string,
     filialId: string,
-  ): Promise<{ valido: boolean; mensagem: string }> {
+  ): Promise<void> {
     const paciente = await this.prisma.pessoa.findUnique({
       where: { id: pacienteId },
       select: { id: true, filialId: true },
     });
 
     if (!paciente) {
-      return {
-        valido: false,
-        mensagem: 'Paciente não encontrado.',
-      };
+      throw new NotFoundException('Paciente não encontrado.');
     }
 
     if (paciente.filialId !== filialId) {
-      return {
-        valido: false,
-        mensagem: 'Paciente não pertence à filial informada.',
-      };
+      throw new UnprocessableEntityException(
+        'Paciente não pertence à filial informada.',
+      );
     }
-
-    return {
-      valido: true,
-      mensagem: 'Paciente válido.',
-    };
   }
 
   private async validarProfissional(
     profissionalId: string,
     empresaId: string,
     filialId: string,
-  ): Promise<{ valido: boolean; mensagem: string }> {
+  ): Promise<void> {
     const usuario = await this.prisma.usuario.findUnique({
       where: { id: profissionalId },
       select: {
@@ -640,41 +463,29 @@ export class AtendimentoService {
     });
 
     if (!usuario) {
-      return {
-        valido: false,
-        mensagem: 'Usuário profissional não encontrado.',
-      };
+      throw new NotFoundException('Usuário profissional não encontrado.');
     }
 
     if (usuario.empresaId !== empresaId) {
-      return {
-        valido: false,
-        mensagem: 'Usuário profissional não pertence à empresa informada.',
-      };
+      throw new UnprocessableEntityException(
+        'Usuário profissional não pertence à empresa informada.',
+      );
     }
 
     if (!usuario.pessoa || usuario.pessoa.filialId !== filialId) {
-      return {
-        valido: false,
-        mensagem: 'Usuário profissional não pertence à filial informada.',
-      };
+      throw new UnprocessableEntityException(
+        'Usuário profissional não pertence à filial informada.',
+      );
     }
 
     const isOftalmologista = Boolean(usuario.pessoa.oftalmologista);
     const isOptometrista = Boolean(usuario.pessoa.optometrista);
 
     if (!isOftalmologista && !isOptometrista) {
-      return {
-        valido: false,
-        mensagem:
-          'Profissional inválido. Informe um usuário vinculado a oftalmologista ou optometrista.',
-      };
+      throw new UnprocessableEntityException(
+        'Profissional inválido. Informe um usuário vinculado a oftalmologista ou optometrista.',
+      );
     }
-
-    return {
-      valido: true,
-      mensagem: 'Profissional válido.',
-    };
   }
 
   private async validarAgenda(
@@ -684,7 +495,7 @@ export class AtendimentoService {
     pacienteId: string,
     profissionalId?: string | null,
     atendimentoAtualId?: string,
-  ): Promise<{ valido: boolean; mensagem: string }> {
+  ): Promise<void> {
     const agenda = await this.prisma.agenda.findUnique({
       where: { id: agendaId },
       select: {
@@ -702,31 +513,25 @@ export class AtendimentoService {
     });
 
     if (!agenda) {
-      return {
-        valido: false,
-        mensagem: 'Agenda não encontrada.',
-      };
+      throw new NotFoundException('Agenda não encontrada.');
     }
 
     if (agenda.empresaId !== empresaId || agenda.filialId !== filialId) {
-      return {
-        valido: false,
-        mensagem: 'Agenda não pertence à empresa/filial informada.',
-      };
+      throw new UnprocessableEntityException(
+        'Agenda não pertence à empresa/filial informada.',
+      );
     }
 
     if (agenda.atendimento && agenda.atendimento.id !== atendimentoAtualId) {
-      return {
-        valido: false,
-        mensagem: 'Agenda já possui atendimento vinculado.',
-      };
+      throw new UnprocessableEntityException(
+        'Agenda já possui atendimento vinculado.',
+      );
     }
 
     if (agenda.pessoaId && agenda.pessoaId !== pacienteId) {
-      return {
-        valido: false,
-        mensagem: 'Paciente informado difere do paciente da agenda.',
-      };
+      throw new UnprocessableEntityException(
+        'Paciente informado difere do paciente da agenda.',
+      );
     }
 
     if (
@@ -734,23 +539,17 @@ export class AtendimentoService {
       agenda.profissionalId &&
       agenda.profissionalId !== profissionalId
     ) {
-      return {
-        valido: false,
-        mensagem: 'Profissional informado difere do profissional da agenda.',
-      };
+      throw new UnprocessableEntityException(
+        'Profissional informado difere do profissional da agenda.',
+      );
     }
-
-    return {
-      valido: true,
-      mensagem: 'Agenda válida.',
-    };
   }
 
   private async validarCliente(
     clienteId: string,
     filialId: string,
     convenioId?: string | null,
-  ): Promise<{ valido: boolean; mensagem: string }> {
+  ): Promise<void> {
     const cliente = await this.prisma.cliente.findUnique({
       where: { id: clienteId },
       select: {
@@ -765,36 +564,26 @@ export class AtendimentoService {
     });
 
     if (!cliente) {
-      return {
-        valido: false,
-        mensagem: 'Cliente não encontrado.',
-      };
+      throw new NotFoundException('Cliente não encontrado.');
     }
 
     if (cliente.pessoa.filialId !== filialId) {
-      return {
-        valido: false,
-        mensagem: 'Cliente não pertence à filial informada.',
-      };
+      throw new UnprocessableEntityException(
+        'Cliente não pertence à filial informada.',
+      );
     }
 
     if (convenioId && cliente.convenioId && cliente.convenioId !== convenioId) {
-      return {
-        valido: false,
-        mensagem: 'Convênio informado difere do convênio do cliente.',
-      };
+      throw new UnprocessableEntityException(
+        'Convênio informado difere do convênio do cliente.',
+      );
     }
-
-    return {
-      valido: true,
-      mensagem: 'Cliente válido.',
-    };
   }
 
   private async validarConvenio(
     convenioId: string,
     empresaId: string,
-  ): Promise<{ valido: boolean; mensagem: string }> {
+  ): Promise<void> {
     const convenio = await this.prisma.convenio.findUnique({
       where: { id: convenioId },
       select: {
@@ -804,90 +593,17 @@ export class AtendimentoService {
     });
 
     if (!convenio) {
-      return {
-        valido: false,
-        mensagem: 'Convênio não encontrado.',
-      };
+      throw new NotFoundException('Convênio não encontrado.');
     }
 
     if (convenio.empresaId !== empresaId) {
-      return {
-        valido: false,
-        mensagem: 'Convênio não pertence à empresa informada.',
-      };
+      throw new UnprocessableEntityException(
+        'Convênio não pertence à empresa informada.',
+      );
     }
-
-    return {
-      valido: true,
-      mensagem: 'Convênio válido.',
-    };
   }
 
-  private mapResumo(
-    atendimento: Prisma.AtendimentoGetPayload<{
-      include: {
-        agenda: {
-          select: {
-            id: true;
-            dataHora: true;
-            status: true;
-          };
-        };
-        paciente: {
-          select: {
-            id: true;
-            nome: true;
-            email: true;
-            cpf: true;
-          };
-        };
-        profissional: {
-          select: {
-            id: true;
-            email: true;
-            username: true;
-            pessoa: {
-              select: {
-                id: true;
-                nome: true;
-                optometrista: {
-                  select: {
-                    id: true;
-                  };
-                };
-                oftalmologista: {
-                  select: {
-                    id: true;
-                  };
-                };
-              };
-            };
-          };
-        };
-        cliente: {
-          select: {
-            id: true;
-            numero_convenio: true;
-            pessoa: {
-              select: {
-                id: true;
-                nome: true;
-                email: true;
-                cpf: true;
-              };
-            };
-          };
-        };
-        convenio: {
-          select: {
-            id: true;
-            nome: true;
-            registro: true;
-          };
-        };
-      };
-    }>,
-  ): AtendimentoResumo {
+  private mapResumo(atendimento: AtendimentoCompleto): AtendimentoResumo {
     return {
       id: atendimento.id,
       empresaId: atendimento.empresaId,
@@ -925,6 +641,7 @@ export class AtendimentoService {
         : null,
       cliente: atendimento.cliente,
       convenio: atendimento.convenio,
+      prontuarioId: atendimento.prontuario?.id ?? null,
     };
   }
 }
