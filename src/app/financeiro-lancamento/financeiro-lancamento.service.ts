@@ -1,532 +1,382 @@
-import { Injectable } from '@nestjs/common';
-import { Prisma, TipoFinanceiro } from '@prisma/client';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { FinanceiroLancamento, Prisma, StatusFinanceiro } from '@prisma/client';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
+  BaixarLancamentoDto,
   CreateFinanceiroLancamentoDto,
   UpdateFinanceiroLancamentoDto,
 } from './dto/financeiro-lancamento.dto';
-import { FinanceiroLancamentoResumo } from './interfaces/financeiro-lancamento.interface';
+import {
+  FiltroLancamento,
+  TotaisLancamento,
+} from './interfaces/financeiro-lancamento.interface';
+
+const LANCAMENTO_INCLUDE = {
+  filial: { select: { id: true, nome: true } },
+  criado_por: { select: { id: true, username: true } },
+  compra: {
+    select: {
+      id: true,
+      fornecedor: { select: { razao_social: true, nome_fantasia: true } },
+    },
+  },
+  venda: {
+    select: {
+      id: true,
+      cliente: { select: { pessoa: { select: { nome: true } } } },
+    },
+  },
+} satisfies Prisma.FinanceiroLancamentoInclude;
+
+const inicioDeHoje = () => {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  return hoje;
+};
 
 @Injectable()
 export class FinanceiroLancamentoService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateFinanceiroLancamentoDto): Promise<ResponseJson> {
-    const validacao = await this.validarRelacionamentos(dto.empresaId, {
-      filialId: dto.filialId,
-      atendimentoId: dto.atendimentoId,
-      vendaId: dto.vendaId,
-      compraId: dto.compraId,
-      ordemServicoId: dto.ordemServicoId,
-      criadoPorId: dto.criadoPorId,
+  async create(
+    dto: CreateFinanceiroLancamentoDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const { empresaId, filialId } = await this.resolverDestino(
+      escopo.filialId ?? dto.filialId,
+      escopo,
+    );
+
+    if (dto.pago && !dto.forma_pagamento) {
+      throw new UnprocessableEntityException(
+        'Informe a forma de pagamento para lançar como pago.',
+      );
+    }
+
+    const lancamento = await this.prisma.financeiroLancamento.create({
+      data: {
+        empresaId,
+        filialId,
+        criadoPorId: escopo.usuarioId,
+        tipo: dto.tipo,
+        categoria: dto.categoria,
+        descricao: dto.descricao,
+        valor: this.arredondar(dto.valor),
+        vencimento: dto.vencimento ? new Date(dto.vencimento) : null,
+        status: dto.pago ? StatusFinanceiro.pago : StatusFinanceiro.pendente,
+        pagoEm: dto.pago ? new Date() : null,
+        forma_pagamento: dto.pago ? dto.forma_pagamento : null,
+      },
+      include: LANCAMENTO_INCLUDE,
     });
 
-    if (!validacao.valido) {
-      return { status: 422, message: validacao.mensagem };
-    }
-
-    try {
-      const lancamento = await this.prisma.financeiroLancamento.create({
-        data: {
-          empresaId: dto.empresaId,
-          filialId: dto.filialId,
-          atendimentoId: dto.atendimentoId,
-          vendaId: dto.vendaId,
-          compraId: dto.compraId,
-          ordemServicoId: dto.ordemServicoId,
-          criadoPorId: dto.criadoPorId,
-          tipo: dto.tipo,
-          categoria: dto.categoria,
-          descricao: dto.descricao,
-          valor: dto.valor,
-          vencimento: dto.vencimento ? new Date(dto.vencimento) : undefined,
-          pagoEm: dto.pagoEm ? new Date(dto.pagoEm) : undefined,
-          status: dto.status,
-        },
-      });
-
-      return this.findById(lancamento.id);
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2003'
-      ) {
-        return {
-          status: 422,
-          message: 'Relacionamento invalido ao criar lancamento financeiro.',
-        };
-      }
-
-      throw error;
-    }
+    return {
+      status: 201,
+      message: 'Lançamento criado com sucesso.',
+      data: lancamento,
+    };
   }
 
-  async findAllByEmpresa(
-    empresaId: string,
-    page: number = 1,
-    limit: number = 10,
-    search: string = '',
-    filialId?: string,
-    tipo?: string,
-    status?: string,
-    categoria?: string,
-    dataInicio?: string,
-    dataFim?: string,
+  async findAll(
+    escopo: EscopoUsuario,
+    filtro: FiltroLancamento,
   ): Promise<ResponseJson> {
-    const empresa = await this.prisma.empresa.findUnique({
-      where: { id: empresaId },
-      select: { id: true },
-    });
-
-    if (!empresa) {
-      return { status: 422, message: 'Empresa nao encontrada.' };
-    }
-
-    if (filialId) {
-      const filial = await this.prisma.filial.findUnique({
-        where: { id: filialId },
-        select: { id: true, empresaId: true },
-      });
-
-      if (!filial || filial.empresaId !== empresaId) {
-        return {
-          status: 422,
-          message: 'Filial nao encontrada para a empresa informada.',
-        };
-      }
-    }
-
-    const tipoFinanceiro = this.parseTipoFinanceiro(tipo);
-    if (tipo && !tipoFinanceiro) {
-      return { status: 422, message: 'Tipo financeiro invalido.' };
-    }
-
-    const pageNumber = Math.max(1, page);
-    const limitNumber = Math.max(1, limit);
-    const skip = (pageNumber - 1) * limitNumber;
+    const page = Math.max(1, filtro.page);
+    const limit = Math.max(1, filtro.limit);
+    const base = this.filtroBase(escopo, filtro);
 
     const where: Prisma.FinanceiroLancamentoWhereInput = {
-      empresaId,
-      ...(filialId && { filialId }),
-      ...(tipoFinanceiro && { tipo: tipoFinanceiro }),
-      ...(status && { status }),
-      ...(categoria && { categoria }),
-      ...(dataInicio || dataFim
+      ...base,
+      ...(filtro.vencidos
         ? {
-            createdAt: {
-              ...(dataInicio && { gte: new Date(dataInicio) }),
-              ...(dataFim && { lte: new Date(dataFim) }),
-            },
+            status: StatusFinanceiro.pendente,
+            vencimento: { lt: inicioDeHoje() },
           }
-        : {}),
-      ...(search
-        ? {
-            OR: [
-              { categoria: { contains: search, mode: 'insensitive' } },
-              { descricao: { contains: search, mode: 'insensitive' } },
-              { status: { contains: search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
+        : filtro.status && { status: filtro.status }),
     };
 
-    const [lancamentos, total] = await this.prisma.$transaction([
+    const [lancamentos, total, totais] = await Promise.all([
       this.prisma.financeiroLancamento.findMany({
-        skip,
-        take: limitNumber,
+        skip: (page - 1) * limit,
+        take: limit,
         where,
-        include: {
-          filial: {
-            select: {
-              id: true,
-              nome: true,
-            },
-          },
-          atendimento: {
-            select: {
-              id: true,
-              dataAtendimento: true,
-              status: true,
-            },
-          },
-          venda: {
-            select: {
-              id: true,
-              dataVenda: true,
-              status: true,
-              valor_total: true,
-            },
-          },
-          compra: {
-            select: {
-              id: true,
-              dataCompra: true,
-              status: true,
-              valor_total: true,
-            },
-          },
-          ordem_servico: {
-            select: {
-              id: true,
-              numero: true,
-              status: true,
-              valor_total: true,
-            },
-          },
-          criado_por: {
-            select: {
-              id: true,
-              email: true,
-              username: true,
-            },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
+        include: LANCAMENTO_INCLUDE,
+        orderBy: [{ vencimento: 'asc' }, { createdAt: 'desc' }],
       }),
       this.prisma.financeiroLancamento.count({ where }),
+      this.calcularTotais(base),
     ]);
 
     return {
       status: 200,
-      message: 'Lancamentos financeiros listados com sucesso.',
+      message: 'Lançamentos listados com sucesso.',
       data: {
-        releases: lancamentos.map((lancamento) => this.mapResumo(lancamento)),
+        lancamentos,
+        totais,
         pagination: {
           total,
-          page: pageNumber,
-          limit: limitNumber,
-          totalPages: Math.ceil(total / limitNumber),
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
         },
       },
     };
   }
 
-  async findById(id: string): Promise<ResponseJson> {
-    const lancamento = await this.prisma.financeiroLancamento.findUnique({
-      where: { id },
-      include: {
-        filial: {
-          select: {
-            id: true,
-            nome: true,
-          },
-        },
-        atendimento: {
-          select: {
-            id: true,
-            dataAtendimento: true,
-            status: true,
-          },
-        },
-        venda: {
-          select: {
-            id: true,
-            dataVenda: true,
-            status: true,
-            valor_total: true,
-          },
-        },
-        compra: {
-          select: {
-            id: true,
-            dataCompra: true,
-            status: true,
-            valor_total: true,
-          },
-        },
-        ordem_servico: {
-          select: {
-            id: true,
-            numero: true,
-            status: true,
-            valor_total: true,
-          },
-        },
-        criado_por: {
-          select: {
-            id: true,
-            email: true,
-            username: true,
-          },
-        },
-      },
+  async findById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const lancamento = await this.prisma.financeiroLancamento.findFirst({
+      where: { id, ...this.filtroEmpresa(escopo) },
+      include: LANCAMENTO_INCLUDE,
     });
 
     if (!lancamento) {
-      return { status: 422, message: 'Lancamento financeiro nao encontrado.' };
+      throw new NotFoundException('Lançamento não encontrado.');
     }
 
-    return {
-      status: 200,
-      message: 'Lancamento financeiro encontrado.',
-      data: {
-        ...this.mapResumo(lancamento),
-        filial: lancamento.filial,
-        atendimento: lancamento.atendimento,
-        venda: lancamento.venda,
-        compra: lancamento.compra,
-        ordemServico: lancamento.ordem_servico,
-        criadoPor: lancamento.criado_por,
-      },
-    };
+    return { status: 200, message: 'Lançamento encontrado.', data: lancamento };
   }
 
   async update(
     id: string,
     dto: UpdateFinanceiroLancamentoDto,
+    escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
-    const lancamento = await this.prisma.financeiroLancamento.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        empresaId: true,
-        filialId: true,
-      },
-    });
+    const lancamento = await this.buscarNoEscopo(id, escopo);
+    this.exigirAvulsoPendente(lancamento, 'editado');
 
-    if (!lancamento) {
-      return { status: 422, message: 'Lancamento financeiro nao encontrado.' };
-    }
-
-    const validacao = await this.validarRelacionamentos(lancamento.empresaId, {
-      filialId: dto.filialId ?? lancamento.filialId ?? undefined,
-      atendimentoId: dto.atendimentoId,
-      vendaId: dto.vendaId,
-      compraId: dto.compraId,
-      ordemServicoId: dto.ordemServicoId,
-      criadoPorId: dto.criadoPorId,
-    });
-
-    if (!validacao.valido) {
-      return { status: 422, message: validacao.mensagem };
-    }
-
-    await this.prisma.financeiroLancamento.update({
+    const atualizado = await this.prisma.financeiroLancamento.update({
       where: { id },
       data: {
-        filialId: dto.filialId,
-        atendimentoId: dto.atendimentoId,
-        vendaId: dto.vendaId,
-        compraId: dto.compraId,
-        ordemServicoId: dto.ordemServicoId,
-        criadoPorId: dto.criadoPorId,
-        tipo: dto.tipo,
         categoria: dto.categoria,
         descricao: dto.descricao,
-        valor: dto.valor,
-        vencimento: dto.vencimento ? new Date(dto.vencimento) : undefined,
-        pagoEm: dto.pagoEm ? new Date(dto.pagoEm) : undefined,
-        status: dto.status,
+        valor: dto.valor === undefined ? undefined : this.arredondar(dto.valor),
+        vencimento:
+          dto.vencimento === undefined
+            ? undefined
+            : dto.vencimento
+              ? new Date(dto.vencimento)
+              : null,
       },
-    });
-
-    return this.findById(id);
-  }
-
-  async deleteById(id: string): Promise<ResponseJson> {
-    const lancamento = await this.prisma.financeiroLancamento.findUnique({
-      where: { id },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!lancamento) {
-      return { status: 422, message: 'Lancamento financeiro nao encontrado.' };
-    }
-
-    await this.prisma.financeiroLancamento.delete({
-      where: { id },
+      include: LANCAMENTO_INCLUDE,
     });
 
     return {
       status: 200,
-      message: 'Lancamento financeiro deletado com sucesso.',
+      message: 'Lançamento atualizado com sucesso.',
+      data: atualizado,
     };
   }
 
-  private mapResumo(
-    lancamento: FinanceiroLancamentoResumo,
-  ): FinanceiroLancamentoResumo {
-    return {
-      id: lancamento.id,
-      empresaId: lancamento.empresaId,
-      filialId: lancamento.filialId,
-      atendimentoId: lancamento.atendimentoId,
-      vendaId: lancamento.vendaId,
-      compraId: lancamento.compraId,
-      ordemServicoId: lancamento.ordemServicoId,
-      criadoPorId: lancamento.criadoPorId,
-      tipo: lancamento.tipo,
-      categoria: lancamento.categoria,
-      descricao: lancamento.descricao,
-      valor: lancamento.valor,
-      vencimento: lancamento.vencimento,
-      pagoEm: lancamento.pagoEm,
-      status: lancamento.status,
-      createdAt: lancamento.createdAt,
-      updatedAt: lancamento.updatedAt,
-    };
-  }
+  async baixar(
+    id: string,
+    dto: BaixarLancamentoDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const lancamento = await this.buscarNoEscopo(id, escopo);
 
-  private parseTipoFinanceiro(tipo?: string): TipoFinanceiro | undefined {
-    if (!tipo) {
-      return undefined;
-    }
-
-    const tipoNormalizado = tipo.toLowerCase().trim();
-
-    if (tipoNormalizado === TipoFinanceiro.receita) {
-      return TipoFinanceiro.receita;
-    }
-
-    if (tipoNormalizado === TipoFinanceiro.despesa) {
-      return TipoFinanceiro.despesa;
-    }
-
-    return undefined;
-  }
-
-  private async validarRelacionamentos(
-    empresaId: string,
-    dados: {
-      filialId?: string;
-      atendimentoId?: string;
-      vendaId?: string;
-      compraId?: string;
-      ordemServicoId?: string;
-      criadoPorId?: string;
-    },
-  ): Promise<{ valido: boolean; mensagem: string }> {
-    const empresa = await this.prisma.empresa.findUnique({
-      where: { id: empresaId },
-      select: { id: true },
+    await this.mudarStatus(id, lancamento.status, StatusFinanceiro.pendente, {
+      status: StatusFinanceiro.pago,
+      pagoEm: dto.pagoEm ? new Date(dto.pagoEm) : new Date(),
+      forma_pagamento: dto.forma_pagamento,
     });
 
-    if (!empresa) {
-      return { valido: false, mensagem: 'Empresa nao encontrada.' };
+    const resposta = await this.findById(id, escopo);
+    return {
+      ...resposta,
+      message:
+        lancamento.tipo === 'receita'
+          ? 'Recebimento registrado.'
+          : 'Pagamento registrado.',
+    };
+  }
+
+  async estornar(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const lancamento = await this.buscarNoEscopo(id, escopo);
+
+    await this.mudarStatus(id, lancamento.status, StatusFinanceiro.pago, {
+      status: StatusFinanceiro.pendente,
+      pagoEm: null,
+      forma_pagamento: null,
+    });
+
+    const resposta = await this.findById(id, escopo);
+    return {
+      ...resposta,
+      message: 'Baixa estornada; lançamento voltou a pendente.',
+    };
+  }
+
+  async cancelar(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const lancamento = await this.buscarNoEscopo(id, escopo);
+    this.exigirAvulsoPendente(lancamento, 'cancelado');
+
+    await this.mudarStatus(id, lancamento.status, StatusFinanceiro.pendente, {
+      status: StatusFinanceiro.cancelado,
+    });
+
+    const resposta = await this.findById(id, escopo);
+    return { ...resposta, message: 'Lançamento cancelado.' };
+  }
+
+  async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const lancamento = await this.buscarNoEscopo(id, escopo);
+
+    if (this.temOrigem(lancamento)) {
+      throw new ConflictException(
+        'Lançamentos de compras e vendas não podem ser excluídos.',
+      );
     }
 
-    if (dados.filialId) {
-      const filial = await this.prisma.filial.findUnique({
-        where: { id: dados.filialId },
+    if (lancamento.status === StatusFinanceiro.pago) {
+      throw new ConflictException(
+        'Estorne a baixa antes de excluir o lançamento.',
+      );
+    }
+
+    await this.prisma.financeiroLancamento.delete({ where: { id } });
+
+    return { status: 200, message: 'Lançamento excluído com sucesso.' };
+  }
+
+  private filtroEmpresa(escopo: EscopoUsuario): { empresaId?: string } {
+    return escopo.empresaId ? { empresaId: escopo.empresaId } : {};
+  }
+
+  private filtroBase(
+    escopo: EscopoUsuario,
+    filtro: FiltroLancamento,
+  ): Prisma.FinanceiroLancamentoWhereInput {
+    const search = filtro.search.trim();
+
+    return {
+      ...this.filtroEmpresa(escopo),
+      ...(escopo.filialId && { filialId: escopo.filialId }),
+      ...(filtro.tipo && { tipo: filtro.tipo }),
+      ...(filtro.categoria && {
+        categoria: { equals: filtro.categoria, mode: 'insensitive' },
+      }),
+      ...((filtro.dataInicio || filtro.dataFim) && {
+        vencimento: {
+          ...(filtro.dataInicio && { gte: new Date(filtro.dataInicio) }),
+          ...(filtro.dataFim && { lte: new Date(filtro.dataFim) }),
+        },
+      }),
+      ...(search && {
+        OR: [
+          { descricao: { contains: search, mode: 'insensitive' } },
+          { categoria: { contains: search, mode: 'insensitive' } },
+        ],
+      }),
+    };
+  }
+
+  private async calcularTotais(
+    base: Prisma.FinanceiroLancamentoWhereInput,
+  ): Promise<TotaisLancamento> {
+    const soma = (where: Prisma.FinanceiroLancamentoWhereInput) =>
+      this.prisma.financeiroLancamento
+        .aggregate({ where: { AND: [base, where] }, _sum: { valor: true } })
+        .then((r) => this.arredondar(r._sum.valor ?? 0));
+
+    const [pendente, vencido, pago] = await Promise.all([
+      soma({ status: StatusFinanceiro.pendente }),
+      soma({
+        status: StatusFinanceiro.pendente,
+        vencimento: { lt: inicioDeHoje() },
+      }),
+      soma({ status: StatusFinanceiro.pago }),
+    ]);
+
+    return { pendente, vencido, pago };
+  }
+
+  private async buscarNoEscopo(id: string, escopo: EscopoUsuario) {
+    const lancamento = await this.prisma.financeiroLancamento.findFirst({
+      where: { id, ...this.filtroEmpresa(escopo) },
+    });
+
+    if (!lancamento) {
+      throw new NotFoundException('Lançamento não encontrado.');
+    }
+
+    return lancamento;
+  }
+
+  private async resolverDestino(
+    filialId: string | undefined,
+    escopo: EscopoUsuario,
+  ): Promise<{ empresaId: string; filialId: string | null }> {
+    if (filialId) {
+      const filial = await this.prisma.filial.findFirst({
+        where: { id: filialId, ...this.filtroEmpresa(escopo) },
         select: { id: true, empresaId: true },
       });
 
-      if (!filial || filial.empresaId !== empresaId) {
-        return {
-          valido: false,
-          mensagem: 'Filial nao encontrada para a empresa informada.',
-        };
+      if (!filial) {
+        throw new UnprocessableEntityException('Filial não encontrada.');
       }
+
+      return { empresaId: filial.empresaId, filialId: filial.id };
     }
 
-    if (dados.atendimentoId) {
-      const atendimento = await this.prisma.atendimento.findUnique({
-        where: { id: dados.atendimentoId },
-        select: { id: true, empresaId: true, filialId: true },
-      });
-
-      if (!atendimento || atendimento.empresaId !== empresaId) {
-        return {
-          valido: false,
-          mensagem: 'Atendimento nao encontrado para a empresa informada.',
-        };
-      }
-
-      if (dados.filialId && atendimento.filialId !== dados.filialId) {
-        return {
-          valido: false,
-          mensagem: 'Atendimento nao pertence a filial informada.',
-        };
-      }
+    if (!escopo.empresaId) {
+      throw new UnprocessableEntityException('Informe a filial do lançamento.');
     }
 
-    if (dados.vendaId) {
-      const venda = await this.prisma.venda.findUnique({
-        where: { id: dados.vendaId },
-        select: { id: true, empresaId: true, filialId: true },
-      });
+    return { empresaId: escopo.empresaId, filialId: null };
+  }
 
-      if (!venda || venda.empresaId !== empresaId) {
-        return {
-          valido: false,
-          mensagem: 'Venda nao encontrada para a empresa informada.',
-        };
-      }
+  private temOrigem(lancamento: FinanceiroLancamento): boolean {
+    return Boolean(lancamento.compraId || lancamento.vendaId);
+  }
 
-      if (dados.filialId && venda.filialId !== dados.filialId) {
-        return {
-          valido: false,
-          mensagem: 'Venda nao pertence a filial informada.',
-        };
-      }
+  private exigirAvulsoPendente(lancamento: FinanceiroLancamento, acao: string) {
+    if (this.temOrigem(lancamento)) {
+      throw new ConflictException(
+        `Lançamentos de compras e vendas não podem ser ${acao}s aqui; altere a compra ou a venda de origem.`,
+      );
     }
 
-    if (dados.compraId) {
-      const compra = await this.prisma.compra.findUnique({
-        where: { id: dados.compraId },
-        select: { id: true, empresaId: true, filialId: true },
-      });
+    if (lancamento.status !== StatusFinanceiro.pendente) {
+      throw new ConflictException(
+        `Só lançamentos pendentes podem ser ${acao}s. Status atual: ${lancamento.status}.`,
+      );
+    }
+  }
 
-      if (!compra || compra.empresaId !== empresaId) {
-        return {
-          valido: false,
-          mensagem: 'Compra nao encontrada para a empresa informada.',
-        };
-      }
-
-      if (dados.filialId && compra.filialId !== dados.filialId) {
-        return {
-          valido: false,
-          mensagem: 'Compra nao pertence a filial informada.',
-        };
-      }
+  /** Muda o status apenas se ainda estiver no esperado (evita dupla baixa). */
+  private async mudarStatus(
+    id: string,
+    atual: StatusFinanceiro,
+    esperado: StatusFinanceiro,
+    data: Prisma.FinanceiroLancamentoUpdateManyMutationInput,
+  ): Promise<void> {
+    if (atual !== esperado) {
+      throw new ConflictException(
+        `Operação disponível apenas para lançamentos ${esperado}s. Status atual: ${atual}.`,
+      );
     }
 
-    if (dados.ordemServicoId) {
-      const ordemServico = await this.prisma.ordemServico.findUnique({
-        where: { id: dados.ordemServicoId },
-        select: { id: true, empresaId: true, filialId: true },
-      });
+    const { count } = await this.prisma.financeiroLancamento.updateMany({
+      where: { id, status: esperado },
+      data,
+    });
 
-      if (!ordemServico || ordemServico.empresaId !== empresaId) {
-        return {
-          valido: false,
-          mensagem: 'Ordem de servico nao encontrada para a empresa informada.',
-        };
-      }
-
-      if (dados.filialId && ordemServico.filialId !== dados.filialId) {
-        return {
-          valido: false,
-          mensagem: 'Ordem de servico nao pertence a filial informada.',
-        };
-      }
+    if (count === 0) {
+      throw new ConflictException(
+        'O lançamento foi alterado por outra operação. Atualize a página.',
+      );
     }
+  }
 
-    if (dados.criadoPorId) {
-      const usuario = await this.prisma.usuario.findUnique({
-        where: { id: dados.criadoPorId },
-        select: { id: true, empresaId: true },
-      });
-
-      if (!usuario) {
-        return {
-          valido: false,
-          mensagem: 'Usuario criador nao encontrado.',
-        };
-      }
-
-      if (usuario.empresaId && usuario.empresaId !== empresaId) {
-        return {
-          valido: false,
-          mensagem: 'Usuario criador nao pertence a empresa informada.',
-        };
-      }
-    }
-
-    return { valido: true, mensagem: '' };
+  private arredondar(valor: number): number {
+    return Math.round(valor * 100) / 100;
   }
 }

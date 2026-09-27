@@ -288,6 +288,12 @@ export class VendaService {
     const venda = await this.buscarNoEscopo(id, escopo);
     this.exigirStatus(venda.status, StatusVenda.aberta, 'finalizadas');
 
+    if (dto.pago && !dto.forma_pagamento) {
+      throw new UnprocessableEntityException(
+        'Informe a forma de pagamento da venda paga na hora.',
+      );
+    }
+
     await this.prisma.$transaction(async (tx) => {
       await this.mudarStatus(tx, id, StatusVenda.aberta, {
         status: StatusVenda.finalizada,
@@ -319,6 +325,7 @@ export class VendaService {
               ? new Date(dto.vencimento)
               : venda.dataVenda,
           pagoEm: dto.pago ? agora : null,
+          forma_pagamento: dto.pago ? dto.forma_pagamento : null,
           status: dto.pago
             ? STATUS_FINANCEIRO.pago
             : STATUS_FINANCEIRO.pendente,

@@ -1,21 +1,21 @@
-import { TipoFinanceiro } from '@prisma/client';
+import { StatusFinanceiro, TipoFinanceiro } from '@prisma/client';
 
-export interface FinanceiroLancamentoResumo {
-  id: string;
-  empresaId: string;
-  filialId: string | null;
-  atendimentoId: string | null;
-  vendaId: string | null;
-  compraId: string | null;
-  ordemServicoId: string | null;
-  criadoPorId: string | null;
-  tipo: TipoFinanceiro;
-  categoria: string | null;
-  descricao: string | null;
-  valor: number;
-  vencimento: Date | null;
-  pagoEm: Date | null;
-  status: string | null;
-  createdAt: Date;
-  updatedAt: Date;
+export interface FiltroLancamento {
+  page: number;
+  limit: number;
+  search: string;
+  tipo?: TipoFinanceiro;
+  status?: StatusFinanceiro;
+  /** Apenas pendentes com vencimento anterior a hoje. */
+  vencidos?: boolean;
+  categoria?: string;
+  /** Periodo pelo vencimento. */
+  dataInicio?: string;
+  dataFim?: string;
+}
+
+export interface TotaisLancamento {
+  pendente: number;
+  vencido: number;
+  pago: number;
 }

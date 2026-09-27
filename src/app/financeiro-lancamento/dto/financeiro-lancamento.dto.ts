@@ -1,126 +1,80 @@
-import { TipoFinanceiro } from '@prisma/client';
+import { FormaPagamento, TipoFinanceiro } from '@prisma/client';
+import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
 } from 'class-validator';
 
-export class CreateFinanceiroLancamentoDto {
-  @IsString({ message: 'O empresaId deve ser um texto valido.' })
-  @IsNotEmpty({ message: 'O empresaId e obrigatorio.' })
-  empresaId!: string;
+const FORMA_MSG = {
+  message:
+    'Forma de pagamento inválida (dinheiro, pix, cartao_credito, cartao_debito, boleto ou transferencia).',
+};
+
+class LancamentoDadosDto {
+  @IsOptional()
+  @IsString({ message: 'A categoria deve ser um texto válido.' })
+  @MaxLength(60, { message: 'A categoria deve ter no máximo 60 caracteres.' })
+  categoria?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'O filialId deve ser um texto valido.' })
-  filialId?: string;
+  @IsString({ message: 'A descrição deve ser um texto válido.' })
+  @MaxLength(255, { message: 'A descrição deve ter no máximo 255 caracteres.' })
+  descricao?: string | null;
 
   @IsOptional()
-  @IsString({ message: 'O atendimentoId deve ser um texto valido.' })
-  atendimentoId?: string;
-
-  @IsOptional()
-  @IsString({ message: 'O vendaId deve ser um texto valido.' })
-  vendaId?: string;
-
-  @IsOptional()
-  @IsString({ message: 'O compraId deve ser um texto valido.' })
-  compraId?: string;
-
-  @IsOptional()
-  @IsString({ message: 'O ordemServicoId deve ser um texto valido.' })
-  ordemServicoId?: string;
-
-  @IsOptional()
-  @IsString({ message: 'O criadoPorId deve ser um texto valido.' })
-  criadoPorId?: string;
-
-  @IsEnum(TipoFinanceiro, {
-    message: 'O tipo financeiro informado e invalido.',
-  })
-  tipo!: TipoFinanceiro;
-
-  @IsOptional()
-  @IsString({ message: 'A categoria deve ser um texto valido.' })
-  categoria?: string;
-
-  @IsOptional()
-  @IsString({ message: 'A descricao deve ser um texto valido.' })
-  descricao?: string;
-
-  @IsNumber({}, { message: 'O valor deve ser numerico.' })
-  @Min(0, { message: 'O valor nao pode ser negativo.' })
-  valor!: number;
-
-  @IsOptional()
-  @IsDateString({}, { message: 'O vencimento deve ser uma data valida.' })
-  vencimento?: string;
-
-  @IsOptional()
-  @IsDateString({}, { message: 'O pagoEm deve ser uma data valida.' })
-  pagoEm?: string;
-
-  @IsOptional()
-  @IsString({ message: 'O status deve ser um texto valido.' })
-  status?: string;
+  @IsDateString({}, { message: 'O vencimento deve ser uma data válida.' })
+  vencimento?: string | null;
 }
 
-export class UpdateFinanceiroLancamentoDto {
+/** Lancamento avulso (aluguel, salarios...). Compras e vendas geram os seus. */
+export class CreateFinanceiroLancamentoDto extends LancamentoDadosDto {
+  @IsEnum(TipoFinanceiro, { message: 'O tipo deve ser receita ou despesa.' })
+  tipo!: TipoFinanceiro;
+
+  @Type(() => Number)
+  @IsNumber({}, { message: 'O valor deve ser um número válido.' })
+  @Min(0.01, { message: 'O valor deve ser maior que zero.' })
+  valor!: number;
+
+  /** Filial do lancamento; se omitida, usa a filial do usuario (opcional). */
   @IsOptional()
-  @IsString({ message: 'O filialId deve ser um texto valido.' })
+  @IsString({ message: 'O filialId deve ser um texto válido.' })
   filialId?: string;
 
+  /** Ja lanca como pago (baixa imediata). */
   @IsOptional()
-  @IsString({ message: 'O atendimentoId deve ser um texto valido.' })
-  atendimentoId?: string;
+  @IsBoolean({ message: 'O campo pago deve ser verdadeiro ou falso.' })
+  pago?: boolean;
 
   @IsOptional()
-  @IsString({ message: 'O vendaId deve ser um texto valido.' })
-  vendaId?: string;
+  @IsEnum(FormaPagamento, FORMA_MSG)
+  forma_pagamento?: FormaPagamento;
+}
 
+export class UpdateFinanceiroLancamentoDto extends LancamentoDadosDto {
   @IsOptional()
-  @IsString({ message: 'O compraId deve ser um texto valido.' })
-  compraId?: string;
-
-  @IsOptional()
-  @IsString({ message: 'O ordemServicoId deve ser um texto valido.' })
-  ordemServicoId?: string;
-
-  @IsOptional()
-  @IsString({ message: 'O criadoPorId deve ser um texto valido.' })
-  criadoPorId?: string;
-
-  @IsOptional()
-  @IsEnum(TipoFinanceiro, {
-    message: 'O tipo financeiro informado e invalido.',
-  })
-  tipo?: TipoFinanceiro;
-
-  @IsOptional()
-  @IsString({ message: 'A categoria deve ser um texto valido.' })
-  categoria?: string;
-
-  @IsOptional()
-  @IsString({ message: 'A descricao deve ser um texto valido.' })
-  descricao?: string;
-
-  @IsOptional()
-  @IsNumber({}, { message: 'O valor deve ser numerico.' })
-  @Min(0, { message: 'O valor nao pode ser negativo.' })
+  @Type(() => Number)
+  @IsNumber({}, { message: 'O valor deve ser um número válido.' })
+  @Min(0.01, { message: 'O valor deve ser maior que zero.' })
   valor?: number;
+}
 
+export class BaixarLancamentoDto {
   @IsOptional()
-  @IsDateString({}, { message: 'O vencimento deve ser uma data valida.' })
-  vencimento?: string;
-
-  @IsOptional()
-  @IsDateString({}, { message: 'O pagoEm deve ser uma data valida.' })
+  @IsDateString(
+    {},
+    { message: 'A data do pagamento deve ser uma data válida.' },
+  )
   pagoEm?: string;
 
-  @IsOptional()
-  @IsString({ message: 'O status deve ser um texto valido.' })
-  status?: string;
+  @IsEnum(FormaPagamento, FORMA_MSG)
+  @IsNotEmpty({ message: 'Informe a forma de pagamento.' })
+  forma_pagamento!: FormaPagamento;
 }

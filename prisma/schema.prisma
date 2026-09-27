@@ -882,30 +882,31 @@ model Convenio {
 }
 
 model FinanceiroLancamento {
-  id             String         @id @default(cuid())
-  empresaId      String
-  filialId       String?
-  atendimentoId  String?
-  vendaId        String?
-  compraId       String?
-  ordemServicoId String?
-  criadoPorId    String?
-  tipo           TipoFinanceiro
-  categoria      String?
-  descricao      String?
-  valor          Float
-  vencimento     DateTime?
-  pagoEm         DateTime?
-  status         String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  atendimento    Atendimento?   @relation(fields: [atendimentoId], references: [id])
-  compra         Compra?        @relation(fields: [compraId], references: [id])
-  criado_por     Usuario?       @relation("FinanceiroCriadoPor", fields: [criadoPorId], references: [id])
-  empresa        Empresa        @relation(fields: [empresaId], references: [id], onDelete: Cascade)
-  filial         Filial?        @relation(fields: [filialId], references: [id])
-  ordem_servico  OrdemServico?  @relation(fields: [ordemServicoId], references: [id])
-  venda          Venda?         @relation(fields: [vendaId], references: [id])
+  id              String           @id @default(cuid())
+  empresaId       String
+  filialId        String?
+  atendimentoId   String?
+  vendaId         String?
+  compraId        String?
+  ordemServicoId  String?
+  criadoPorId     String?
+  tipo            TipoFinanceiro
+  categoria       String?
+  descricao       String?
+  valor           Float
+  vencimento      DateTime?
+  pagoEm          DateTime?
+  status          StatusFinanceiro @default(pendente)
+  forma_pagamento FormaPagamento?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  atendimento     Atendimento?     @relation(fields: [atendimentoId], references: [id])
+  compra          Compra?          @relation(fields: [compraId], references: [id])
+  criado_por      Usuario?         @relation("FinanceiroCriadoPor", fields: [criadoPorId], references: [id])
+  empresa         Empresa          @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  filial          Filial?          @relation(fields: [filialId], references: [id])
+  ordem_servico   OrdemServico?    @relation(fields: [ordemServicoId], references: [id])
+  venda           Venda?           @relation(fields: [vendaId], references: [id])
 
   @@index([empresaId, tipo, createdAt])
   @@index([filialId])
@@ -914,6 +915,7 @@ model FinanceiroLancamento {
   @@index([compraId])
   @@index([ordemServicoId])
   @@index([criadoPorId])
+  @@index([empresaId, status, vencimento])
 }
 
 model Arquivo {
@@ -1058,6 +1060,21 @@ enum StatusCompra {
   rascunho
   recebida
   cancelada
+}
+
+enum StatusFinanceiro {
+  pendente
+  pago
+  cancelado
+}
+
+enum FormaPagamento {
+  dinheiro
+  pix
+  cartao_credito
+  cartao_debito
+  boleto
+  transferencia
 }
 
 enum TipoFinanceiro {

@@ -7,6 +7,7 @@ import {
 import { EscopoUsuario } from './escopo.interface';
 
 interface UsuarioRequest {
+  id?: string;
   superadmin?: boolean;
   empresaId?: string | null;
   pessoa?: { filialId?: string | null } | null;
@@ -27,7 +28,7 @@ export const Escopo = createParamDecorator(
     }
 
     if (usuario.superadmin) {
-      return { superadmin: true };
+      return { superadmin: true, usuarioId: usuario.id };
     }
 
     if (!usuario.empresaId) {
@@ -36,6 +37,7 @@ export const Escopo = createParamDecorator(
 
     return {
       superadmin: false,
+      usuarioId: usuario.id,
       empresaId: usuario.empresaId,
       filialId: usuario.pessoa?.filialId ?? undefined,
     };

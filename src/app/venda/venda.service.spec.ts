@@ -82,7 +82,11 @@ describe('VendaService', () => {
   it('finalizar baixa so produtos fisicos, lanca receita e fatura a OS', async () => {
     prismaMock.venda.findFirst.mockResolvedValue(vendaAberta);
 
-    await service.finalizar('venda-1', { pago: true }, escopo);
+    await service.finalizar(
+      'venda-1',
+      { pago: true, forma_pagamento: 'pix' },
+      escopo,
+    );
 
     expect(movimentoMock.registrar).toHaveBeenCalledTimes(1);
     expect(movimentoMock.registrar).toHaveBeenCalledWith(

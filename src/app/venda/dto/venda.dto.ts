@@ -1,9 +1,11 @@
+import { FormaPagamento } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
   IsDateString,
+  IsEnum,
   IsNumber,
   IsOptional,
   IsString,
@@ -87,6 +89,14 @@ export class FinalizarVendaDto {
   @IsOptional()
   @IsBoolean({ message: 'O campo pago deve ser verdadeiro ou falso.' })
   pago?: boolean;
+
+  /** Obrigatoria quando pago = true. */
+  @IsOptional()
+  @IsEnum(FormaPagamento, {
+    message:
+      'Forma de pagamento inválida (dinheiro, pix, cartao_credito, cartao_debito, boleto ou transferencia).',
+  })
+  forma_pagamento?: FormaPagamento;
 
   /** Vencimento da receita quando nao for paga na hora. */
   @IsOptional()

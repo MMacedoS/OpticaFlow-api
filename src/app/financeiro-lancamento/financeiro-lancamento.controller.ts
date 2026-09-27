@@ -1,76 +1,119 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
   Get,
   Param,
+  ParseEnumPipe,
   Post,
   Put,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { StatusFinanceiro, TipoFinanceiro } from '@prisma/client';
+import { Escopo } from 'src/common/escopo/escopo.decorator';
+import type { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 import {
+  BaixarLancamentoDto,
   CreateFinanceiroLancamentoDto,
   UpdateFinanceiroLancamentoDto,
 } from './dto/financeiro-lancamento.dto';
 import { FinanceiroLancamentoService } from './financeiro-lancamento.service';
 
+const tipoPipe = new ParseEnumPipe(TipoFinanceiro, {
+  optional: true,
+  exceptionFactory: () =>
+    new BadRequestException('O tipo deve ser receita ou despesa.'),
+});
+
+const statusPipe = new ParseEnumPipe(StatusFinanceiro, {
+  optional: true,
+  exceptionFactory: () =>
+    new BadRequestException('O status deve ser pendente, pago ou cancelado.'),
+});
+
 @Controller('financeiro-lancamento')
 @UseGuards(AuthGuard, AcessoGuard)
+@UseInterceptors(EnrichUserInterceptor)
 export class FinanceiroLancamentoController {
   constructor(
-    private readonly financeiroLancamentoService: FinanceiroLancamentoService,
+    private readonly financeiroService: FinanceiroLancamentoService,
   ) {}
 
   @Post()
-  async createFinanceiroLancamento(@Body() dto: CreateFinanceiroLancamentoDto) {
-    return this.financeiroLancamentoService.create(dto);
+  async create(
+    @Body() dto: CreateFinanceiroLancamentoDto,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.financeiroService.create(dto, escopo);
   }
 
-  @Get('empresa/:empresaId')
-  async getAllByEmpresa(
-    @Param('empresaId') empresaId: string,
+  @Get()
+  async findAll(
+    @Escopo() escopo: EscopoUsuario,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
-    @Query('filialId') filialId?: string,
-    @Query('tipo') tipo?: string,
-    @Query('status') status?: string,
+    @Query('tipo', tipoPipe) tipo?: TipoFinanceiro,
+    @Query('status', statusPipe) status?: StatusFinanceiro,
+    @Query('vencidos') vencidos?: string,
     @Query('categoria') categoria?: string,
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
   ) {
-    return this.financeiroLancamentoService.findAllByEmpresa(
-      empresaId,
-      page ? parseInt(page, 10) : 1,
-      limit ? parseInt(limit, 10) : 10,
-      search ?? '',
-      filialId,
+    return this.financeiroService.findAll(escopo, {
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
+      search: search ?? '',
       tipo,
       status,
+      vencidos: vencidos === 'true',
       categoria,
       dataInicio,
       dataFim,
-    );
+    });
   }
 
   @Get(':id')
-  async getFinanceiroLancamentoById(@Param('id') id: string) {
-    return this.financeiroLancamentoService.findById(id);
+  async findById(@Param('id') id: string, @Escopo() escopo: EscopoUsuario) {
+    return this.financeiroService.findById(id, escopo);
   }
 
   @Put(':id')
-  async updateFinanceiroLancamento(
+  async update(
     @Param('id') id: string,
     @Body() dto: UpdateFinanceiroLancamentoDto,
+    @Escopo() escopo: EscopoUsuario,
   ) {
-    return this.financeiroLancamentoService.update(id, dto);
+    return this.financeiroService.update(id, dto, escopo);
+  }
+
+  @Post(':id/baixar')
+  async baixar(
+    @Param('id') id: string,
+    @Body() dto: BaixarLancamentoDto,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.financeiroService.baixar(id, dto, escopo);
+  }
+
+  @Post(':id/estornar')
+  async estornar(@Param('id') id: string, @Escopo() escopo: EscopoUsuario) {
+    return this.financeiroService.estornar(id, escopo);
+  }
+
+  @Post(':id/cancelar')
+  async cancelar(@Param('id') id: string, @Escopo() escopo: EscopoUsuario) {
+    return this.financeiroService.cancelar(id, escopo);
   }
 
   @Delete(':id')
-  async deleteFinanceiroLancamento(@Param('id') id: string) {
-    return this.financeiroLancamentoService.deleteById(id);
+  async delete(@Param('id') id: string, @Escopo() escopo: EscopoUsuario) {
+    return this.financeiroService.deleteById(id, escopo);
   }
 }
