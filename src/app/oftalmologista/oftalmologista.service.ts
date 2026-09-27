@@ -6,7 +6,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { OftalmologistaResumo } from './interfaces/oftalmologista.interface';
 import { CreateDto, UpdateDto } from './dto/oftalmologista.dto';
 import { getSenhaBase } from 'src/utils/validator';
-import { ControleAcesso } from 'src/constants/acessos';
+import { atribuirPerfilProfissional } from 'src/common/acesso/perfil-profissional';
 import { register } from 'module';
 
 @Injectable()
@@ -76,20 +76,7 @@ export class OftalmologistaService {
           },
         });
 
-        const todosAcessos = await tx.acesso.findMany({
-          where: {
-            nome: { notIn: ControleAcesso.getRestricoes('oftalmologista') },
-          },
-          select: { id: true },
-        });
-
-        await tx.atribuicao.createMany({
-          data: todosAcessos.map((acesso) => ({
-            usuarioId: user.id,
-            acessoId: acesso.id,
-          })),
-          skipDuplicates: true,
-        });
+        await atribuirPerfilProfissional(tx, user.id);
 
         const novoOftalmologista = await tx.oftalmologista.create({
           data: {

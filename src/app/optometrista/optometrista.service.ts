@@ -5,7 +5,7 @@ import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateDto, UpdateDto } from './dto/optometrista.dto';
 import { getSenhaBase } from 'src/utils/validator';
-import { ControleAcesso } from 'src/constants/acessos';
+import { atribuirPerfilProfissional } from 'src/common/acesso/perfil-profissional';
 
 @Injectable()
 export class OptometristaService {
@@ -75,20 +75,7 @@ export class OptometristaService {
           },
         });
 
-        const todosAcessos = await tx.acesso.findMany({
-          where: {
-            nome: { notIn: ControleAcesso.getRestricoes('optometrista') },
-          },
-          select: { id: true },
-        });
-
-        await tx.atribuicao.createMany({
-          data: todosAcessos.map((acesso) => ({
-            usuarioId: user.id,
-            acessoId: acesso.id,
-          })),
-          skipDuplicates: true,
-        });
+        await atribuirPerfilProfissional(tx, user.id);
 
         const novoOptometrista = await tx.optometrista.create({
           data: {

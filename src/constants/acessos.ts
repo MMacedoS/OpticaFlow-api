@@ -7,18 +7,17 @@ export class ControleAcesso {
       'funcionario',
       'prontuario',
       'receita',
-      'financeiro-lacamento',
+      'financeiro-lancamento',
       'acesso',
     ],
     gerente: ['empresa', 'usuario', 'filial'],
-    optometrista: ['prontuario', 'receita', 'atendimento', 'agenda'],
-    oftalmologista: ['prontuario', 'receita', 'atendimento', 'agenda'],
     administrador: [],
   };
 
   static getRestricoes(cargo) {
     const cargoFormatado = cargo?.toLowerCase();
 
-    return this.#restricoes[cargoFormatado] || [];
+    // Cargo desconhecido recebe as restricoes de funcionario (antes: acesso total).
+    return this.#restricoes[cargoFormatado] ?? this.#restricoes.funcionario;
   }
 }
