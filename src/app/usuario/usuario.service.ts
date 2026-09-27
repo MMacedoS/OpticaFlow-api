@@ -186,7 +186,12 @@ export class UsuarioService {
         status: true,
         createdAt: true,
         updatedAt: true,
-        pessoa: true,
+        pessoa: {
+          include: {
+            optometrista: { select: { id: true } },
+            oftalmologista: { select: { id: true } },
+          },
+        },
       },
     });
   }

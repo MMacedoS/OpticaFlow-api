@@ -48,13 +48,18 @@ export class AgendaController {
       return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
     }
 
+    // Optometrista/oftalmologista ve apenas a propria agenda.
+    const ehProfissional = Boolean(
+      user.pessoa.optometrista || user.pessoa.oftalmologista,
+    );
+
     const agendas = await this.agendaService.findAllByFilial(
       user.pessoa.filialId,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 10,
       search ?? '',
       status,
-      profissionalId,
+      ehProfissional ? user.id : profissionalId,
       dataInicio,
       dataFim,
     );

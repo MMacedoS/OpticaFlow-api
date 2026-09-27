@@ -216,8 +216,15 @@ export class ReceitaService {
     return { status: 200, message: 'Receita excluída com sucesso.' };
   }
 
-  private filtroEmpresa(escopo: EscopoUsuario): { empresaId?: string } {
-    return escopo.empresaId ? { empresaId: escopo.empresaId } : {};
+  /** Tambem vale para o prontuario (ambos tem empresaId e profissionalId). */
+  private filtroEmpresa(escopo: EscopoUsuario): {
+    empresaId?: string;
+    profissionalId?: string;
+  } {
+    return {
+      ...(escopo.empresaId && { empresaId: escopo.empresaId }),
+      ...(escopo.profissionalId && { profissionalId: escopo.profissionalId }),
+    };
   }
 
   private async buscarNoEscopo(

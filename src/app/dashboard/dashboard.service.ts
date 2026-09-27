@@ -56,7 +56,17 @@ export class DashboardService {
 
     const [consultasHoje, ordensServico, vendas, financeiro, estoque] =
       await Promise.all([
-        se('atendimento', () => this.consultasHoje(escopoWhere, p)),
+        se('atendimento', () =>
+          this.consultasHoje(
+            {
+              ...escopoWhere,
+              ...(escopo.profissionalId && {
+                profissionalId: escopo.profissionalId,
+              }),
+            },
+            p,
+          ),
+        ),
         se('ordem-servico', () => this.ordensServico(escopoWhere, p)),
         se('venda', () => this.vendas(escopoWhere, p)),
         se('financeiro-lancamento', () => this.financeiro(escopoWhere, p)),

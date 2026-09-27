@@ -67,6 +67,11 @@ export class AtendimentoService {
 
     await this.validarPaciente(dto.pacienteId, filial.id);
 
+    // Profissional so agenda consultas para si mesmo.
+    if (escopo.profissionalId) {
+      dto.profissionalId = escopo.profissionalId;
+    }
+
     if (dto.profissionalId) {
       await this.validarProfissional(
         dto.profissionalId,
@@ -160,6 +165,7 @@ export class AtendimentoService {
     const where: Prisma.AtendimentoWhereInput = {
       ...(escopo.empresaId && { empresaId: escopo.empresaId }),
       ...(escopo.filialId && { filialId: escopo.filialId }),
+      ...(escopo.profissionalId && { profissionalId: escopo.profissionalId }),
       ...(filtro.status && { status: filtro.status }),
       ...(filtro.profissionalId && { profissionalId: filtro.profissionalId }),
       ...(filtro.pacienteId && { pacienteId: filtro.pacienteId }),
@@ -240,8 +246,13 @@ export class AtendimentoService {
 
     const agendaIdDestino = dto.agendaId ?? atendimento.agendaId;
     const pacienteIdDestino = dto.pacienteId ?? atendimento.pacienteId;
-    const profissionalIdDestino =
-      dto.profissionalId ?? atendimento.profissionalId;
+    const profissionalIdDestino = escopo.profissionalId
+      ? atendimento.profissionalId
+      : (dto.profissionalId ?? atendimento.profissionalId);
+
+    if (escopo.profissionalId) {
+      dto.profissionalId = undefined;
+    }
     const clienteIdDestino = dto.clienteId ?? atendimento.clienteId;
     const convenioIdDestino = dto.convenioId ?? atendimento.convenioId;
 
@@ -361,7 +372,10 @@ export class AtendimentoService {
   }
 
   private filtroEmpresa(escopo: EscopoUsuario): Prisma.AtendimentoWhereInput {
-    return escopo.empresaId ? { empresaId: escopo.empresaId } : {};
+    return {
+      ...(escopo.empresaId && { empresaId: escopo.empresaId }),
+      ...(escopo.profissionalId && { profissionalId: escopo.profissionalId }),
+    };
   }
 
   private async buscarNoEscopo(id: string, escopo: EscopoUsuario) {

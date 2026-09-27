@@ -102,6 +102,7 @@ export class ProntuarioService {
       where: {
         id: dto.atendimentoId,
         ...(escopo.empresaId && { empresaId: escopo.empresaId }),
+        ...(escopo.profissionalId && { profissionalId: escopo.profissionalId }),
       },
       select: {
         id: true,
@@ -363,7 +364,10 @@ export class ProntuarioService {
   }
 
   private filtroEscopo(escopo: EscopoUsuario): Prisma.ProntuarioWhereInput {
-    return escopo.empresaId ? { empresaId: escopo.empresaId } : {};
+    return {
+      ...(escopo.empresaId && { empresaId: escopo.empresaId }),
+      ...(escopo.profissionalId && { profissionalId: escopo.profissionalId }),
+    };
   }
 
   private async garantirNoEscopo(
