@@ -195,8 +195,8 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function ensureAcesso(nome: string, descricao: string) {
-  const acessoExistente = await prisma.acesso.findUnique({
-    where: { nome },
+  const acessoExistente = await prisma.acesso.findFirst({
+    where: { nome, empresaId: null },
   });
 
   if (acessoExistente) {

@@ -317,13 +317,14 @@ model Usuario {
 
 model Acesso {
   id         String            @id @default(cuid())
-  nome       String            @unique
+  nome       String
   descricao  String?
   empresaId  String?
   empresa    Empresa?          @relation(fields: [empresaId], references: [id])
   permissao  AcessoPermissao[]
   atribuicao Atribuicao[]
 
+  @@unique([empresaId, nome])
   @@index([empresaId])
 }
 
