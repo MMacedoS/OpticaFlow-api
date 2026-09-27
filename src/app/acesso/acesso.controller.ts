@@ -1,111 +1,81 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
-  Query,
-  Req,
+  Put,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { AuthGuard } from 'src/guards/auth/auth.guard';
+import { Escopo } from 'src/common/escopo/escopo.decorator';
+import type { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
+import { AuthGuard } from 'src/guards/auth/auth.guard';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 import { AcessoService } from './acesso.service';
-import { CreatePermissaoDto } from './dto/create-permissao.dto';
-import { CreateAcessoDto } from './dto/create-acesso.dto';
-import { VincularPermissoesDto } from './dto/vincular-permissoes.dto';
-import { AtribuirAcessoUsuarioDto } from './dto/atribuir-acesso-usuario.dto';
+import {
+  CreateAcessoDto,
+  DefinirAcessosUsuarioDto,
+  UpdateAcessoDto,
+} from './dto/acesso.dto';
 
 @Controller('acesso')
 @UseGuards(AuthGuard, AcessoGuard)
+@UseInterceptors(EnrichUserInterceptor)
 export class AcessoController {
   constructor(private readonly acessoService: AcessoService) {}
 
-  @Get('meus')
-  async listarMeusAcessos(
-    @Req()
-    request: {
-      user?: {
-        sub: string;
-      };
-    },
-  ) {
-    const usuarioId = request.user?.sub;
-
-    if (!usuarioId) {
-      return { status: 401, message: 'Usuário não autenticado.' };
-    }
-
-    return this.acessoService.listarAtribuicoesDoUsuario(usuarioId);
+  @Get('modulos')
+  async catalogo() {
+    return this.acessoService.catalogo();
   }
 
-  @Post('permissao')
-  async createPermissao(@Body() data: CreatePermissaoDto) {
-    return this.acessoService.createPermissao(data);
+  @Get('usuarios')
+  async listarUsuarios(@Escopo() escopo: EscopoUsuario) {
+    return this.acessoService.listarUsuarios(escopo);
   }
 
-  @Get('permissao')
-  async listarPermissoes(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-    @Query('search') search?: string,
-    @Query('empresaId') empresaId?: string,
+  @Put('usuario/:usuarioId')
+  async definirAcessosDoUsuario(
+    @Param('usuarioId') usuarioId: string,
+    @Body() dto: DefinirAcessosUsuarioDto,
+    @Escopo() escopo: EscopoUsuario,
   ) {
-    const permissoes = await this.acessoService.listarPermissoes(
-      page ? parseInt(page, 10) : 1,
-      limit ? parseInt(limit, 10) : 10,
-      search ? search : '',
-      empresaId,
+    return this.acessoService.definirAcessosDoUsuario(
+      usuarioId,
+      dto.acessoIds,
+      escopo,
     );
-
-    if (!permissoes || permissoes.length === 0) {
-      return { error: 'Nenhuma permissão encontrada' };
-    }
-
-    return permissoes;
-  }
-
-  @Post()
-  async createAcesso(@Body() data: CreateAcessoDto) {
-    return this.acessoService.createAcesso(data);
   }
 
   @Get()
-  async listarAcessos(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-    @Query('search') search?: string,
-    @Query('empresaId') empresaId?: string,
+  async findAll(@Escopo() escopo: EscopoUsuario) {
+    return this.acessoService.findAll(escopo);
+  }
+
+  @Post()
+  async create(@Body() dto: CreateAcessoDto, @Escopo() escopo: EscopoUsuario) {
+    return this.acessoService.create(dto, escopo);
+  }
+
+  @Get(':id')
+  async findById(@Param('id') id: string, @Escopo() escopo: EscopoUsuario) {
+    return this.acessoService.findById(id, escopo);
+  }
+
+  @Put(':id')
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateAcessoDto,
+    @Escopo() escopo: EscopoUsuario,
   ) {
-    const acessos = await this.acessoService.listarAcessos(
-      page ? parseInt(page, 10) : 1,
-      limit ? parseInt(limit, 10) : 10,
-      search ? search : '',
-      empresaId,
-    );
-
-    if (!acessos || acessos.length === 0) {
-      return { error: 'Nenhum acesso encontrado' };
-    }
-
-    return acessos;
+    return this.acessoService.update(id, dto, escopo);
   }
 
-  @Post(':acessoId/permissao')
-  async vincularPermissoes(
-    @Param('acessoId') acessoId: string,
-    @Body() data: VincularPermissoesDto,
-  ) {
-    return this.acessoService.vincularPermissoes(acessoId, data);
-  }
-
-  @Post('atribuicao')
-  async atribuirAcessoUsuario(@Body() data: AtribuirAcessoUsuarioDto) {
-    return this.acessoService.atribuirAcessoUsuario(data);
-  }
-
-  @Get('usuario/:usuarioId')
-  async listarAtribuicoesDoUsuario(@Param('usuarioId') usuarioId: string) {
-    return this.acessoService.listarAtribuicoesDoUsuario(usuarioId);
+  @Delete(':id')
+  async delete(@Param('id') id: string, @Escopo() escopo: EscopoUsuario) {
+    return this.acessoService.deleteById(id, escopo);
   }
 }

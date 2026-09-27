@@ -4,11 +4,13 @@ import { AcessoService } from './acesso.service';
 import { AcessoController } from './acesso.controller';
 import { AuthModule } from 'src/app/auth/auth.module';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
+import { UsuarioModule } from '../usuario/usuario.module';
 
 @Module({
   imports: [
     forwardRef(() => AuthModule), // Use forwardRef to resolve circular dependency
     PrismaModule,
+    forwardRef(() => UsuarioModule),
   ],
   providers: [AcessoService, AcessoGuard],
   controllers: [AcessoController],

@@ -1,19 +1,4 @@
-export interface AcessoResumo {
-  id: string;
-  nome: string;
-  descricao: string | null;
-  empresaId: string | null;
-  createdAt?: Date;
-}
-
-export interface PermissaoResumo {
-  id: string;
-  modulo: string;
-  acao: string;
-  descricao: string | null;
-  empresaId: string | null;
-}
-
+/** Formato usado pela sessao (login/refresh) para montar as permissoes. */
 export interface Atribuicao {
   acesso: {
     id: string;
@@ -28,4 +13,9 @@ export interface Atribuicao {
       };
     }[];
   };
+}
+
+export interface ModuloCatalogo {
+  modulo: string;
+  acoes: string[];
 }
