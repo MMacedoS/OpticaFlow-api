@@ -974,7 +974,7 @@ model Notificacao {
 
 model Auditoria {
   id            String       @id @default(cuid())
-  empresaId     String
+  empresaId     String?
   filialId      String?
   usuarioId     String?
   atendimentoId String?
@@ -987,7 +987,7 @@ model Auditoria {
   user_agent    String?
   createdAt     DateTime     @default(now())
   atendimento   Atendimento? @relation(fields: [atendimentoId], references: [id])
-  empresa       Empresa      @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  empresa       Empresa?     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   filial        Filial?      @relation(fields: [filialId], references: [id])
   usuario       Usuario?     @relation(fields: [usuarioId], references: [id])
 
