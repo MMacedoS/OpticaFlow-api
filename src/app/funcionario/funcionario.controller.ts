@@ -87,8 +87,9 @@ export class FuncionarioController {
   async updateFuncionario(
     @Param('id') id: string,
     @Body() dto: UpdateFuncionarioDto,
+    @CurrentUser() user?: { id: string },
   ) {
-    return this.funcionarioService.update(id, dto);
+    return this.funcionarioService.update(id, dto, user?.id);
   }
 
   @Patch(':id/status')

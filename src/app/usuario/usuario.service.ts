@@ -1,3 +1,4 @@
+import { atribuirAcessosPorModulo } from 'src/common/acesso/atribuir-acessos';
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
@@ -79,23 +80,7 @@ export class UsuarioService {
     usuarioId: string,
     tx: Prisma.TransactionClient,
   ): Promise<void> {
-    const acessos = await tx.acesso.findMany({
-      select: {
-        id: true,
-      },
-    });
-
-    if (acessos.length === 0) {
-      return;
-    }
-
-    await tx.atribuicao.createMany({
-      data: acessos.map((acesso) => ({
-        usuarioId,
-        acessoId: acesso.id,
-      })),
-      skipDuplicates: true,
-    });
+    await atribuirAcessosPorModulo(tx, usuarioId);
   }
 
   async findByEmail(email: string): Promise<any> {

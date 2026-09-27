@@ -1,3 +1,4 @@
+import { atribuirAcessosPorModulo } from 'src/common/acesso/atribuir-acessos';
 import {
   ConflictException,
   Injectable,
@@ -107,18 +108,11 @@ export class FilialService {
           },
         });
 
-        const todosAcessos = await tx.acesso.findMany({
-          where: { nome: { notIn: ControleAcesso.getRestricoes('gerente') } },
-          select: { id: true },
-        });
-
-        await tx.atribuicao.createMany({
-          data: todosAcessos.map((acesso) => ({
-            usuarioId: user.id,
-            acessoId: acesso.id,
-          })),
-          skipDuplicates: true,
-        });
+        await atribuirAcessosPorModulo(
+          tx,
+          user.id,
+          ControleAcesso.getRestricoes('gerente'),
+        );
 
         return novaFilial;
       });

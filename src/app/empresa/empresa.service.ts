@@ -1,3 +1,4 @@
+import { atribuirAcessosPorModulo } from 'src/common/acesso/atribuir-acessos';
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
@@ -84,20 +85,7 @@ export class EmpresaService {
           },
         });
 
-        const todosAcessos = await tx.acesso.findMany({
-          where: { nome: { notIn: ['empresa', 'usuario'] } },
-          select: {
-            id: true,
-          },
-        });
-
-        await tx.atribuicao.createMany({
-          data: todosAcessos.map((acesso) => ({
-            usuarioId: user.id,
-            acessoId: acesso.id,
-          })),
-          skipDuplicates: true,
-        });
+        await atribuirAcessosPorModulo(tx, user.id, ['empresa', 'usuario']);
 
         return novaEmpresa;
       });

@@ -1,3 +1,8 @@
+import {
+  atribuirAcessosPorModulo,
+  definirPerfisDoUsuario,
+  impedirAlterarProprioAcesso,
+} from 'src/common/acesso/atribuir-acessos';
 import { ControleAcesso } from './../../constants/acessos';
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
@@ -75,20 +80,20 @@ export class FuncionarioService {
           },
         });
 
-        const todosAcessos = await tx.acesso.findMany({
-          where: {
-            nome: { notIn: ControleAcesso.getRestricoes(dto.cargo) },
-          },
-          select: { id: true },
-        });
-
-        await tx.atribuicao.createMany({
-          data: todosAcessos.map((acesso) => ({
-            usuarioId: user.id,
-            acessoId: acesso.id,
-          })),
-          skipDuplicates: true,
-        });
+        if (dto.acessoIds?.length) {
+          await definirPerfisDoUsuario(
+            tx,
+            user.id,
+            dto.acessoIds,
+            filial.empresaId,
+          );
+        } else {
+          await atribuirAcessosPorModulo(
+            tx,
+            user.id,
+            ControleAcesso.getRestricoes(dto.cargo),
+          );
+        }
 
         const novoFuncionario = await tx.funcionario.create({
           data: {
@@ -347,7 +352,11 @@ export class FuncionarioService {
     };
   }
 
-  async update(id: string, dto: UpdateFuncionarioDto): Promise<ResponseJson> {
+  async update(
+    id: string,
+    dto: UpdateFuncionarioDto,
+    usuarioLogadoId?: string,
+  ): Promise<ResponseJson> {
     const funcionario = await this.prisma.funcionario.findUnique({
       where: { id },
       include: {
@@ -438,31 +447,30 @@ export class FuncionarioService {
         },
       });
 
-      if (dto.cargo && dto.cargo !== funcionario.cargo) {
-        await tx.atribuicao.deleteMany({
-          where: { usuarioId: usuario.id },
-        });
+      const cargoMudou = Boolean(dto.cargo && dto.cargo !== funcionario.cargo);
 
-        const todosAcessos = await tx.acesso.findMany({
-          where: {
-            nome: { notIn: ControleAcesso.getRestricoes(dto.cargo) },
-          },
-          select: { id: true },
-        });
+      if (dto.acessoIds) {
+        impedirAlterarProprioAcesso(usuario.id, usuarioLogadoId);
+        await definirPerfisDoUsuario(
+          tx,
+          usuario.id,
+          dto.acessoIds,
+          usuario.empresaId!,
+        );
+      } else if (cargoMudou) {
+        impedirAlterarProprioAcesso(usuario.id, usuarioLogadoId);
+        await tx.atribuicao.deleteMany({ where: { usuarioId: usuario.id } });
+        await atribuirAcessosPorModulo(
+          tx,
+          usuario.id,
+          ControleAcesso.getRestricoes(dto.cargo),
+        );
+      }
 
-        await tx.atribuicao.createMany({
-          data: todosAcessos.map((acesso) => ({
-            usuarioId: usuario.id,
-            acessoId: acesso.id,
-          })),
-          skipDuplicates: true,
-        });
-
+      if (cargoMudou) {
         await tx.funcionario.update({
           where: { id },
-          data: {
-            cargo: dto.cargo,
-          },
+          data: { cargo: dto.cargo },
         });
       }
     });

@@ -1,6 +1,7 @@
 import { Status } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -20,6 +21,12 @@ export class FuncionarioDto {
 
   @IsOptional()
   status?: Status;
+
+  /** Perfis de acesso escolhidos; sem eles vale a regra padrao do cargo. */
+  @IsOptional()
+  @IsArray({ message: 'Os perfis de acesso devem ser uma lista.' })
+  @IsString({ each: true, message: 'Cada perfil deve ser um id válido.' })
+  acessoIds?: string[];
 }
 
 export class UpdateFuncionarioDto {
@@ -41,4 +48,10 @@ export class UpdateFuncionarioDto {
 
   @IsOptional()
   status?: Status;
+
+  /** Perfis de acesso escolhidos; sem eles vale a regra padrao do cargo. */
+  @IsOptional()
+  @IsArray({ message: 'Os perfis de acesso devem ser uma lista.' })
+  @IsString({ each: true, message: 'Cada perfil deve ser um id válido.' })
+  acessoIds?: string[];
 }
