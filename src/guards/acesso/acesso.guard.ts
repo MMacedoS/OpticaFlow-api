@@ -6,8 +6,10 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
+import { MODULO_ACESSO } from 'src/decorators/modulo-acesso/modulo-acesso.decorator';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
@@ -16,6 +18,7 @@ export class AcessoGuard implements CanActivate {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly authService: AuthService,
+    private readonly reflector: Reflector,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -51,7 +54,13 @@ export class AcessoGuard implements CanActivate {
       return true;
     }
 
-    const { modulo, routePath } = this.resolveRouteContext(request);
+    const moduloFixo = this.reflector.get<string | undefined>(
+      MODULO_ACESSO,
+      context.getHandler(),
+    );
+    const { modulo, routePath } = moduloFixo
+      ? { modulo: moduloFixo, routePath: '' }
+      : this.resolveRouteContext(request);
     const acoesCandidatas = this.resolveActionCandidates(
       request.method,
       routePath,

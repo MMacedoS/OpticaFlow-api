@@ -32,6 +32,7 @@ import { FinanceiroLancamentoModule } from './app/financeiro-lancamento/financei
 import { ArquivoModule } from './app/arquivo/arquivo.module';
 import { NotificacaoModule } from './app/notificacao/notificacao.module';
 import { AuditoriaModule } from './app/auditoria/auditoria.module';
+import { RelatorioModule } from './app/relatorio/relatorio.module';
 import { ClienteModule } from './app/cliente/cliente.module';
 import { PessoaModule } from './app/pessoa/pessoa.module';
 
@@ -70,6 +71,7 @@ import { PessoaModule } from './app/pessoa/pessoa.module';
     ArquivoModule,
     NotificacaoModule,
     AuditoriaModule,
+    RelatorioModule,
     ClienteModule,
     PessoaModule,
   ],
