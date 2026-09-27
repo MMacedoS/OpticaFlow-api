@@ -14,6 +14,7 @@ import {
 } from '@prisma/client';
 import { MovimentoEstoqueService } from 'src/app/movimento-estoque/movimento-estoque.service';
 import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
+import { STATUS_FINANCEIRO } from 'src/common/financeiro/status-financeiro';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
@@ -23,13 +24,6 @@ import {
   UpdateCompraDto,
 } from './dto/compra.dto';
 import { FiltroCompra } from './interfaces/compra.interface';
-
-/** Status do lancamento financeiro gerado pela compra. */
-export const STATUS_FINANCEIRO = {
-  pendente: 'pendente',
-  pago: 'pago',
-  cancelado: 'cancelado',
-} as const;
 
 const COMPRA_INCLUDE = {
   filial: { select: { id: true, nome: true } },

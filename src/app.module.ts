@@ -23,7 +23,6 @@ import { EstoqueItemModule } from './app/estoque-item/estoque-item.module';
 import { MovimentoEstoqueModule } from './app/movimento-estoque/movimento-estoque.module';
 import { CompraModule } from './app/compra/compra.module';
 import { VendaModule } from './app/venda/venda.module';
-import { VendaItemModule } from './app/venda-item/venda-item.module';
 import { LaboratorioModule } from './app/laboratorio/laboratorio.module';
 import { OrdemServicoModule } from './app/ordem-servico/ordem-servico.module';
 import { OrdemServicoItemModule } from './app/ordem-servico-item/ordem-servico-item.module';
@@ -61,7 +60,6 @@ import { PessoaModule } from './app/pessoa/pessoa.module';
     MovimentoEstoqueModule,
     CompraModule,
     VendaModule,
-    VendaItemModule,
     LaboratorioModule,
     OrdemServicoModule,
     OrdemServicoItemModule,

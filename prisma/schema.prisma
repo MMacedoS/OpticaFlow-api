@@ -761,39 +761,44 @@ model CompraItem {
 }
 
 model Venda {
-  id            String                 @id @default(cuid())
-  empresaId     String
-  filialId      String
-  clienteId     String?
-  atendimentoId String?
-  dataVenda     DateTime               @default(now())
-  status        String?
-  valor_total   Float                  @default(0)
-  observacoes   String?
-  createdAt     DateTime               @default(now())
-  updatedAt     DateTime               @updatedAt
-  financeiro    FinanceiroLancamento[]
-  atendimento   Atendimento?           @relation(fields: [atendimentoId], references: [id])
-  cliente       Cliente?               @relation(fields: [clienteId], references: [id])
-  empresa       Empresa                @relation(fields: [empresaId], references: [id], onDelete: Cascade)
-  filial        Filial                 @relation(fields: [filialId], references: [id], onDelete: Cascade)
-  itens         VendaItem[]
+  id             String                 @id @default(cuid())
+  empresaId      String
+  filialId       String
+  clienteId      String?
+  atendimentoId  String?
+  dataVenda      DateTime               @default(now())
+  status         StatusVenda            @default(aberta)
+  finalizadaEm   DateTime?
+  ordemServicoId String?
+  valor_total    Float                  @default(0)
+  observacoes    String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  financeiro     FinanceiroLancamento[]
+  atendimento    Atendimento?           @relation(fields: [atendimentoId], references: [id])
+  cliente        Cliente?               @relation(fields: [clienteId], references: [id])
+  empresa        Empresa                @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  filial         Filial                 @relation(fields: [filialId], references: [id], onDelete: Cascade)
+  itens          VendaItem[]
+  ordem_servico  OrdemServico?          @relation(fields: [ordemServicoId], references: [id])
 
   @@index([empresaId, dataVenda])
   @@index([filialId, dataVenda])
   @@index([clienteId])
   @@index([atendimentoId])
+  @@index([ordemServicoId])
 }
 
 model VendaItem {
-  id             String  @id @default(cuid())
-  vendaId        String
-  produtoId      String
-  quantidade     Float
-  valor_unitario Float
-  desconto       Float?
-  produto        Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  venda          Venda   @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  id                String   @id @default(cuid())
+  vendaId           String
+  produtoId         String?
+  descricao_servico String?
+  quantidade        Float
+  valor_unitario    Float
+  desconto          Float?
+  produto           Produto? @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  venda             Venda    @relation(fields: [vendaId], references: [id], onDelete: Cascade)
 
   @@index([vendaId])
   @@index([produtoId])
@@ -837,6 +842,7 @@ model OrdemServico {
   filial           Filial                 @relation(fields: [filialId], references: [id], onDelete: Cascade)
   laboratorio      Laboratorio?           @relation(fields: [laboratorioId], references: [id])
   itens            OrdemServicoItem[]
+  vendas           Venda[]
 
   @@index([empresaId, status])
   @@index([filialId])
@@ -1038,6 +1044,12 @@ enum StatusOrdemServico {
   aberta
   orcamento
   faturada
+  finalizada
+  cancelada
+}
+
+enum StatusVenda {
+  aberta
   finalizada
   cancelada
 }
