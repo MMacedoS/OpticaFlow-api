@@ -1,6 +1,7 @@
 import { StatusAtendimento } from '@prisma/client';
 
-export interface ResumoDashboard {
+/** Secoes que o usuario nao pode listar voltam como null. */
+export interface SecoesDashboard {
   consultasHoje: {
     total: number;
     porStatus: Record<StatusAtendimento, number>;
@@ -44,3 +45,7 @@ export interface ResumoDashboard {
     }[];
   };
 }
+
+export type ResumoDashboard = {
+  [K in keyof SecoesDashboard]: SecoesDashboard[K] | null;
+};

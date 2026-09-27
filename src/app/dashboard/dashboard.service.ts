@@ -10,7 +10,10 @@ import {
 import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { ResumoDashboard } from './interfaces/dashboard.interface';
+import {
+  ResumoDashboard,
+  SecoesDashboard,
+} from './interfaces/dashboard.interface';
 
 const OS_EM_ANDAMENTO: StatusOrdemServico[] = [
   StatusOrdemServico.aberta,
@@ -47,13 +50,17 @@ export class DashboardService {
     };
     const p = periodos();
 
+    const pode = await this.modulosPermitidos(escopo);
+    const se = <T>(modulo: string, calcular: () => Promise<T>) =>
+      pode(modulo) ? calcular() : Promise.resolve(null);
+
     const [consultasHoje, ordensServico, vendas, financeiro, estoque] =
       await Promise.all([
-        this.consultasHoje(escopoWhere, p),
-        this.ordensServico(escopoWhere, p),
-        this.vendas(escopoWhere, p),
-        this.financeiro(escopoWhere, p),
-        this.estoque(escopo),
+        se('atendimento', () => this.consultasHoje(escopoWhere, p)),
+        se('ordem-servico', () => this.ordensServico(escopoWhere, p)),
+        se('venda', () => this.vendas(escopoWhere, p)),
+        se('financeiro-lancamento', () => this.financeiro(escopoWhere, p)),
+        se('estoque', () => this.estoque(escopo)),
       ]);
 
     const data: ResumoDashboard = {
@@ -67,10 +74,56 @@ export class DashboardService {
     return { status: 200, message: 'Resumo do painel.', data };
   }
 
+  /**
+   * Mesma regra do AcessoGuard: pode listar o modulo se tiver permissao
+   * (listar ou *) ou se o modulo nao tiver nenhuma permissao configurada.
+   */
+  private async modulosPermitidos(
+    escopo: EscopoUsuario,
+  ): Promise<(modulo: string) => boolean> {
+    if (escopo.superadmin) return () => true;
+
+    const escopoEmpresa = [
+      { empresaId: null },
+      ...(escopo.empresaId ? [{ empresaId: escopo.empresaId }] : []),
+    ];
+
+    const [configuradas, doUsuario] = await Promise.all([
+      this.prisma.permissao.findMany({
+        where: { OR: escopoEmpresa },
+        select: { modulo: true },
+        distinct: ['modulo'],
+      }),
+      this.prisma.permissao.findMany({
+        where: {
+          OR: escopoEmpresa,
+          acao: { in: ['listar', '*'] },
+          acesso: {
+            some: {
+              acesso: {
+                atribuicao: { some: { usuarioId: escopo.usuarioId ?? '' } },
+              },
+            },
+          },
+        },
+        select: { modulo: true },
+        distinct: ['modulo'],
+      }),
+    ]);
+
+    const configurados = new Set(configuradas.map((p) => p.modulo));
+    const permitidos = new Set(doUsuario.map((p) => p.modulo));
+
+    return (modulo) =>
+      permitidos.has('*') ||
+      permitidos.has(modulo) ||
+      (!configurados.has(modulo) && !configurados.has('*'));
+  }
+
   private async consultasHoje(
     escopoWhere: Prisma.AtendimentoWhereInput,
     p: ReturnType<typeof periodos>,
-  ): Promise<ResumoDashboard['consultasHoje']> {
+  ): Promise<SecoesDashboard['consultasHoje']> {
     const where: Prisma.AtendimentoWhereInput = {
       ...escopoWhere,
       dataAtendimento: { gte: p.inicioHoje, lt: p.fimHoje },
@@ -127,7 +180,7 @@ export class DashboardService {
   private async ordensServico(
     escopoWhere: Prisma.OrdemServicoWhereInput,
     p: ReturnType<typeof periodos>,
-  ): Promise<ResumoDashboard['ordensServico']> {
+  ): Promise<SecoesDashboard['ordensServico']> {
     const emAndamento: Prisma.OrdemServicoWhereInput = {
       ...escopoWhere,
       status: { in: OS_EM_ANDAMENTO },
@@ -170,7 +223,7 @@ export class DashboardService {
   private async vendas(
     escopoWhere: Prisma.VendaWhereInput,
     p: ReturnType<typeof periodos>,
-  ): Promise<ResumoDashboard['vendas']> {
+  ): Promise<SecoesDashboard['vendas']> {
     const periodo = async (gte: Date, lt?: Date) => {
       const r = await this.prisma.venda.aggregate({
         where: {
@@ -198,7 +251,7 @@ export class DashboardService {
   private async financeiro(
     escopoWhere: Prisma.FinanceiroLancamentoWhereInput,
     p: ReturnType<typeof periodos>,
-  ): Promise<ResumoDashboard['financeiro']> {
+  ): Promise<SecoesDashboard['financeiro']> {
     const soma = async (
       tipo: TipoFinanceiro,
       vencimento: Prisma.DateTimeNullableFilter,
@@ -237,7 +290,7 @@ export class DashboardService {
 
   private async estoque(
     escopo: EscopoUsuario,
-  ): Promise<ResumoDashboard['estoque']> {
+  ): Promise<SecoesDashboard['estoque']> {
     const where: Prisma.EstoqueItemWhereInput = {
       estoque: {
         ...(escopo.empresaId && { empresaId: escopo.empresaId }),
