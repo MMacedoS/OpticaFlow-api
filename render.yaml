@@ -1,6 +1,6 @@
 # Blueprint do Render: New > Blueprint e aponte para este repositorio.
-# Cria o PostgreSQL e a API na mesma regiao; a API recebe a URL interna do
-# banco automaticamente.
+# Cria o PostgreSQL, a API e o frontend (site estatico, vindo do repositorio
+# opticalFlow-APP). A API recebe a URL interna do banco automaticamente.
 databases:
   - name: opticaflow-db
     databaseName: opticaflow
@@ -23,7 +23,8 @@ services:
         fromDatabase:
           name: opticaflow-db
           property: connectionString
-      # Dominio do frontend na Vercel (varios separados por virgula)
+      # URL publica do frontend, ex.: https://opticaflow-web.onrender.com
+      # (varias separadas por virgula)
       - key: FRONTEND_URL
         sync: false
       - key: SEED_SUPER_ADMIN_EMAIL
@@ -44,3 +45,23 @@ services:
       # mude para false, porque o seed redefine a senha do superadmin.
       - key: RUN_SEED
         value: "true"
+
+  - type: web
+    name: opticaflow-web
+    runtime: static
+    repo: https://github.com/MMacedoS/opticalFlow-APP
+    branch: main
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    # Rotas do React: qualquer caminho serve o index.html
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # URL publica da API, ex.: https://opticaflow-api.onrender.com
+      # (usada no build; ao alterar, faca um novo deploy do frontend)
+      - key: VITE_API_URL
+        sync: false

@@ -80,28 +80,37 @@ npm test            # unitarios (services, guards, escopo por empresa/filial)
 npm run test:e2e    # e2e contra a API real; exige banco com migrations e seed
 ```
 
-## Deploy (Render + Vercel)
+## Deploy (Render)
 
-A API e o PostgreSQL rodam no Render e o frontend na Vercel. A API usa a imagem
-[Dockerfile.prod](Dockerfile.prod), que aplica as migrations pendentes a cada
-inicializacao.
+Banco, API e frontend rodam no Render, criados pelo [render.yaml](render.yaml):
 
-1. **Render**: New → Blueprint → este repositorio. O [render.yaml](render.yaml)
-   cria o banco `opticaflow-db` e o servico `opticaflow-api` na mesma regiao,
-   liga a `DATABASE_URL` interna do banco a API e gera os segredos JWT.
-   Preencha `FRONTEND_URL` (dominio da Vercel), `SEED_SUPER_ADMIN_EMAIL` e
-   `SEED_SUPER_ADMIN_PASSWORD`.
-2. O primeiro deploy roda com `RUN_SEED=true` e cria acessos, permissoes e o
+- `opticaflow-db`: PostgreSQL
+- `opticaflow-api`: esta API, com a imagem [Dockerfile.prod](Dockerfile.prod),
+  que aplica as migrations pendentes a cada inicializacao
+- `opticaflow-web`: o frontend como site estatico, vindo do repositorio
+  [opticalFlow-APP](https://github.com/MMacedoS/opticalFlow-APP)
+
+1. No Render, conecte a conta do GitHub com acesso aos dois repositorios e crie
+   New → Blueprint → este repositorio. O banco e ligado a API automaticamente
+   e os segredos JWT sao gerados.
+2. Preencha as variaveis pedidas:
+   - `FRONTEND_URL` (API): URL publica do frontend, ex.
+     `https://opticaflow-web.onrender.com`
+   - `VITE_API_URL` (frontend): URL publica da API, ex.
+     `https://opticaflow-api.onrender.com`
+   - `SEED_SUPER_ADMIN_EMAIL` e `SEED_SUPER_ADMIN_PASSWORD` (API)
+
+   As URLs finais aparecem no painel de cada servico; se o Render acrescentar
+   um sufixo ao nome, corrija as duas variaveis e faca um novo deploy do
+   frontend (a `VITE_API_URL` entra no build).
+3. O primeiro deploy roda com `RUN_SEED=true` e cria acessos, permissoes e o
    superadmin. **Depois mude `RUN_SEED` para `false`**: o seed redefine a senha
    do superadmin a cada execucao.
-3. **Vercel**: importe o repositorio do frontend com `VITE_API_URL` apontando
-   para a URL do Render. Adicione o dominio final da Vercel em `FRONTEND_URL`
-   no Render (varios dominios separados por virgula).
 
 Limites do plano gratuito do Render:
 
 - a API hiberna apos 15 minutos sem acesso; a primeira requisicao seguinte leva
-  cerca de um minuto;
+  cerca de um minuto (o site estatico nao hiberna);
 - o PostgreSQL gratuito **expira 30 dias apos a criacao**. Para uso real, mude o
   banco para um plano pago antes disso.
 
