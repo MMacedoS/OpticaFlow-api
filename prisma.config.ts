@@ -10,6 +10,8 @@ export default defineConfig({
     seed: 'node -r ts-node/register/transpile-only prisma/seed.ts',
   },
   datasource: {
-    url: process.env['DATABASE_URL'],
+    // Migrations usam a conexao direta quando o banco fica atras de um pooler
+    // (ex.: Neon); a API usa a DATABASE_URL.
+    url: process.env['DIRECT_URL'] ?? process.env['DATABASE_URL'],
   },
 });

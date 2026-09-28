@@ -1,0 +1,46 @@
+# Blueprint do Render: New > Blueprint e aponte para este repositorio.
+# Cria o PostgreSQL e a API na mesma regiao; a API recebe a URL interna do
+# banco automaticamente.
+databases:
+  - name: opticaflow-db
+    databaseName: opticaflow
+    user: opticaflow
+    plan: free
+    region: virginia
+    postgresMajorVersion: "17"
+
+services:
+  - type: web
+    name: opticaflow-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile.prod
+    plan: free
+    region: virginia
+    branch: master
+    healthCheckPath: /
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: opticaflow-db
+          property: connectionString
+      # Dominio do frontend na Vercel (varios separados por virgula)
+      - key: FRONTEND_URL
+        sync: false
+      - key: SEED_SUPER_ADMIN_EMAIL
+        sync: false
+      - key: SEED_SUPER_ADMIN_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_EXPIRATION
+        value: 15m
+      - key: JWT_REFRESH_EXPIRATION
+        value: 7d
+      - key: SWAGGER_ENABLED
+        value: "true"
+      # Roda o seed ao iniciar: deixe true so no primeiro deploy e depois
+      # mude para false, porque o seed redefine a senha do superadmin.
+      - key: RUN_SEED
+        value: "true"
