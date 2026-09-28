@@ -11,6 +11,8 @@ import {
   Query,
   UseGuards,
   UseInterceptors,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { StatusVenda } from '@prisma/client';
 import { Escopo } from 'src/common/escopo/escopo.decorator';
@@ -89,6 +91,7 @@ export class VendaController {
   }
 
   @Post(':id/finalizar')
+  @HttpCode(HttpStatus.OK)
   async finalizar(
     @Param('id') id: string,
     @Body() dto: FinalizarVendaDto,
@@ -98,6 +101,7 @@ export class VendaController {
   }
 
   @Post(':id/cancelar')
+  @HttpCode(HttpStatus.OK)
   async cancelar(@Param('id') id: string, @Escopo() escopo: EscopoUsuario) {
     return this.vendaService.cancelar(id, escopo);
   }

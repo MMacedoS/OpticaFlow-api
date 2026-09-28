@@ -11,6 +11,8 @@ import {
   Query,
   UseGuards,
   UseInterceptors,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { StatusFinanceiro, TipoFinanceiro } from '@prisma/client';
 import { Escopo } from 'src/common/escopo/escopo.decorator';
@@ -94,6 +96,7 @@ export class FinanceiroLancamentoController {
   }
 
   @Post(':id/baixar')
+  @HttpCode(HttpStatus.OK)
   async baixar(
     @Param('id') id: string,
     @Body() dto: BaixarLancamentoDto,
@@ -103,11 +106,13 @@ export class FinanceiroLancamentoController {
   }
 
   @Post(':id/estornar')
+  @HttpCode(HttpStatus.OK)
   async estornar(@Param('id') id: string, @Escopo() escopo: EscopoUsuario) {
     return this.financeiroService.estornar(id, escopo);
   }
 
   @Post(':id/cancelar')
+  @HttpCode(HttpStatus.OK)
   async cancelar(@Param('id') id: string, @Escopo() escopo: EscopoUsuario) {
     return this.financeiroService.cancelar(id, escopo);
   }
