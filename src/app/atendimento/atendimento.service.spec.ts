@@ -125,4 +125,31 @@ describe('AtendimentoService.updateStatus', () => {
       },
     });
   });
+
+  it('equipe nao inicia a consulta pela edicao', async () => {
+    prismaMock.atendimento.findFirst.mockResolvedValue({
+      ...atendimentoEm(hojeAs(9)),
+      status: StatusAtendimento.em_espera,
+    });
+
+    await expect(
+      service.update(
+        'atend-1',
+        { status: StatusAtendimento.em_andamento },
+        equipe,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('equipe nao cria consulta ja concluida', async () => {
+    await expect(
+      service.create(
+        {
+          pacienteId: 'pessoa-1',
+          status: StatusAtendimento.concluido,
+        },
+        equipe,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
 });

@@ -61,6 +61,19 @@ export class AtendimentoService {
     dto: CreateAtendimentoDto,
     escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
+    // Criar ja iniciada ou concluida segue as regras de iniciar/finalizar.
+    if (dto.status) {
+      this.validarMudancaDeStatus(
+        {
+          dataAtendimento: dto.dataAtendimento
+            ? new Date(dto.dataAtendimento)
+            : null,
+        },
+        dto.status,
+        escopo,
+      );
+    }
+
     const filial = await this.resolverFilial(
       escopo.filialId ?? dto.filialId,
       escopo,
@@ -241,6 +254,19 @@ export class AtendimentoService {
     escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
     const atendimento = await this.buscarNoEscopo(id, escopo);
+
+    // Mudar o status pela edicao segue as mesmas regras dos botoes.
+    if (dto.status && dto.status !== atendimento.status) {
+      this.validarMudancaDeStatus(
+        {
+          dataAtendimento: dto.dataAtendimento
+            ? new Date(dto.dataAtendimento)
+            : atendimento.dataAtendimento,
+        },
+        dto.status,
+        escopo,
+      );
+    }
 
     const agendaIdDestino = dto.agendaId ?? atendimento.agendaId;
     const pacienteIdDestino = dto.pacienteId ?? atendimento.pacienteId;
