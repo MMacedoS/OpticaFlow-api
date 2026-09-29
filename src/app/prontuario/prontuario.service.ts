@@ -16,6 +16,7 @@ import {
   SecaoLista,
   SecaoUnica,
 } from './interfaces/prontuario.interface';
+import { exigirProfissional } from 'src/common/escopo/exigir-profissional';
 
 type OperacoesSecaoUnica = {
   [K in SecaoUnica]: {
@@ -98,6 +99,8 @@ export class ProntuarioService {
     dto: CreateProntuarioDto,
     escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
+    exigirProfissional(escopo);
+
     const atendimento = await this.prisma.atendimento.findFirst({
       where: {
         id: dto.atendimentoId,
@@ -238,6 +241,8 @@ export class ProntuarioService {
     dto: UpdateProntuarioDto,
     escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
+    exigirProfissional(escopo);
+
     await this.garantirNoEscopo(id, escopo);
 
     const prontuario = await this.prisma.prontuario.update({
@@ -254,6 +259,8 @@ export class ProntuarioService {
   }
 
   async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    exigirProfissional(escopo);
+
     await this.garantirNoEscopo(id, escopo);
 
     const receitas = await this.prisma.receita.count({
@@ -277,6 +284,8 @@ export class ProntuarioService {
     dados: DadosSecaoUnica[K],
     escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
+    exigirProfissional(escopo);
+
     await this.garantirNoEscopo(prontuarioId, escopo);
 
     const operacoes = this.secoesUnicas[secao];
@@ -294,6 +303,8 @@ export class ProntuarioService {
     secao: SecaoUnica,
     escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
+    exigirProfissional(escopo);
+
     await this.garantirNoEscopo(prontuarioId, escopo);
 
     const operacoes = this.secoesUnicas[secao];
@@ -312,6 +323,8 @@ export class ProntuarioService {
     dados: DadosSecaoLista[K],
     escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
+    exigirProfissional(escopo);
+
     await this.garantirNoEscopo(prontuarioId, escopo);
 
     const operacoes = this.secoesLista[secao];
@@ -331,6 +344,8 @@ export class ProntuarioService {
     dados: DadosSecaoLista[K],
     escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
+    exigirProfissional(escopo);
+
     const operacoes = await this.garantirItemNoEscopo(
       prontuarioId,
       secao,
@@ -352,6 +367,8 @@ export class ProntuarioService {
     itemId: string,
     escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
+    exigirProfissional(escopo);
+
     const operacoes = await this.garantirItemNoEscopo(
       prontuarioId,
       secao,

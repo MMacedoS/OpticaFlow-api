@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -12,7 +13,17 @@ import { ReceitaService } from './receita.service';
 describe('ReceitaService', () => {
   let service: ReceitaService;
 
-  const escopo: EscopoUsuario = { superadmin: false, empresaId: 'empresa-1' };
+  // Quem grava e o profissional do atendimento.
+  const escopo: EscopoUsuario = {
+    superadmin: false,
+    empresaId: 'empresa-1',
+    profissionalId: 'usuario-1',
+  };
+  const escopoEquipe: EscopoUsuario = {
+    superadmin: false,
+    empresaId: 'empresa-1',
+    filialId: 'filial-1',
+  };
 
   const prismaMock = {
     prontuario: { findFirst: jest.fn() },
@@ -150,7 +161,11 @@ describe('ReceitaService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(prismaMock.prontuario.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 'pront-x', empresaId: 'empresa-1' },
+        where: {
+          id: 'pront-x',
+          empresaId: 'empresa-1',
+          profissionalId: 'usuario-1',
+        },
       }),
     );
   });
@@ -164,5 +179,17 @@ describe('ReceitaService', () => {
       service.update('rec-1', { oculos: { od_esferico: '-1.00' } }, escopo),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prismaMock.receita.update).not.toHaveBeenCalled();
+  });
+
+  it('recusa receita emitida por quem nao e o profissional', async () => {
+    await expect(
+      service.create(
+        { prontuarioId: 'pront-1', tipo: TipoReceita.oculos },
+        escopoEquipe,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      service.deleteById('rec-1', escopoEquipe),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

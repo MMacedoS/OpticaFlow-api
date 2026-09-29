@@ -15,6 +15,7 @@ import {
   UpdateReceitaDto,
 } from './dto/receita.dto';
 import { FiltroReceita } from './interfaces/receita.interface';
+import { exigirProfissional } from 'src/common/escopo/exigir-profissional';
 
 const TIPOS: TipoReceita[] = [
   TipoReceita.oculos,
@@ -88,6 +89,8 @@ export class ReceitaService {
     dto: CreateReceitaDto,
     escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
+    exigirProfissional(escopo);
+
     this.garantirApenasDetalheDoTipo(dto.tipo, dto);
 
     const prontuario = await this.prisma.prontuario.findFirst({
@@ -190,6 +193,8 @@ export class ReceitaService {
     dto: UpdateReceitaDto,
     escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
+    exigirProfissional(escopo);
+
     const { tipo } = await this.buscarNoEscopo(id, escopo);
     this.garantirApenasDetalheDoTipo(tipo, dto);
 
@@ -210,6 +215,8 @@ export class ReceitaService {
   }
 
   async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    exigirProfissional(escopo);
+
     await this.buscarNoEscopo(id, escopo);
     await this.prisma.receita.delete({ where: { id } });
 

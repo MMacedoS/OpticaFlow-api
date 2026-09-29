@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -12,7 +13,17 @@ import { ProntuarioService } from './prontuario.service';
 describe('ProntuarioService', () => {
   let service: ProntuarioService;
 
-  const escopo: EscopoUsuario = { superadmin: false, empresaId: 'empresa-1' };
+  // Quem grava e o profissional do atendimento.
+  const escopo: EscopoUsuario = {
+    superadmin: false,
+    empresaId: 'empresa-1',
+    profissionalId: 'usuario-1',
+  };
+  const escopoEquipe: EscopoUsuario = {
+    superadmin: false,
+    empresaId: 'empresa-1',
+    filialId: 'filial-1',
+  };
 
   const prismaMock = {
     atendimento: { findFirst: jest.fn() },
@@ -63,7 +74,11 @@ describe('ProntuarioService', () => {
 
       expect(prismaMock.atendimento.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'atend-1', empresaId: 'empresa-1' },
+          where: {
+            id: 'atend-1',
+            empresaId: 'empresa-1',
+            profissionalId: 'usuario-1',
+          },
         }),
       );
       expect(prismaMock.prontuario.create).toHaveBeenCalledWith(
@@ -109,15 +124,14 @@ describe('ProntuarioService', () => {
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
-    it('superadmin nao filtra por empresa', async () => {
-      prismaMock.atendimento.findFirst.mockResolvedValue(atendimentoBase);
-      prismaMock.prontuario.create.mockResolvedValue({ id: 'pront-1' });
-
-      await service.create({ atendimentoId: 'atend-1' }, { superadmin: true });
-
-      expect(prismaMock.atendimento.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'atend-1' } }),
-      );
+    it.each([
+      ['a equipe da filial', escopoEquipe],
+      ['o superadmin', { superadmin: true }],
+    ])('recusa abertura feita por %s', async (_quem, escopoSemProfissional) => {
+      await expect(
+        service.create({ atendimentoId: 'atend-1' }, escopoSemProfissional),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prismaMock.prontuario.create).not.toHaveBeenCalled();
     });
   });
 
