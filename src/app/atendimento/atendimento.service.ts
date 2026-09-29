@@ -18,6 +18,7 @@ import {
   AtendimentoResumo,
   FiltroAtendimento,
 } from './interfaces/atendimento.interface';
+import { exigirProfissional } from 'src/common/escopo/exigir-profissional';
 
 const ATENDIMENTO_INCLUDE = {
   agenda: { select: { id: true, dataHora: true, status: true } },
@@ -318,7 +319,8 @@ export class AtendimentoService {
     status: StatusAtendimento,
     escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
-    await this.buscarNoEscopo(id, escopo);
+    const atual = await this.buscarNoEscopo(id, escopo);
+    this.validarMudancaDeStatus(atual, status, escopo);
 
     const atendimento = await this.prisma.$transaction(async (tx) => {
       const atualizado = await tx.atendimento.update({
@@ -373,6 +375,49 @@ export class AtendimentoService {
       ...(escopo.empresaId && { empresaId: escopo.empresaId }),
       ...(escopo.profissionalId && { profissionalId: escopo.profissionalId }),
     };
+  }
+
+  /**
+   * Iniciar e finalizar a consulta sao atos do profissional do atendimento
+   * (o escopo ja restringe o profissional aos proprios atendimentos), e a
+   * consulta so pode ser iniciada no dia marcado. Cancelar segue livre para a
+   * equipe da filial.
+   */
+  private validarMudancaDeStatus(
+    atendimento: { dataAtendimento: Date | null },
+    status: StatusAtendimento,
+    escopo: EscopoUsuario,
+  ): void {
+    if (status === StatusAtendimento.em_andamento) {
+      exigirProfissional(
+        escopo,
+        'Somente o profissional de saúde do atendimento pode iniciar a consulta.',
+      );
+
+      if (!this.ehHoje(atendimento.dataAtendimento)) {
+        throw new UnprocessableEntityException(
+          'A consulta só pode ser iniciada no dia do atendimento.',
+        );
+      }
+    }
+
+    if (status === StatusAtendimento.concluido) {
+      exigirProfissional(
+        escopo,
+        'Somente o profissional de saúde do atendimento pode finalizar a consulta.',
+      );
+    }
+  }
+
+  /** Mesmo dia no fuso da API (TZ). */
+  private ehHoje(data: Date | null): boolean {
+    if (!data) return false;
+    const hoje = new Date();
+    return (
+      data.getFullYear() === hoje.getFullYear() &&
+      data.getMonth() === hoje.getMonth() &&
+      data.getDate() === hoje.getDate()
+    );
   }
 
   private async buscarNoEscopo(id: string, escopo: EscopoUsuario) {

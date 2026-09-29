@@ -7,10 +7,11 @@ import { EscopoUsuario } from './escopo.interface';
  * O filtro por profissionalId do escopo garante que seja o profissional do
  * proprio atendimento.
  */
-export function exigirProfissional(escopo: EscopoUsuario): void {
+export function exigirProfissional(
+  escopo: EscopoUsuario,
+  mensagem = 'Somente o profissional de saúde do atendimento pode alterar o prontuário e as receitas.',
+): void {
   if (!escopo.profissionalId) {
-    throw new ForbiddenException(
-      'Somente o profissional de saúde do atendimento pode alterar o prontuário e as receitas.',
-    );
+    throw new ForbiddenException(mensagem);
   }
 }
