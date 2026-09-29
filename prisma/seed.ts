@@ -237,6 +237,48 @@ async function ensurePermissao(
   });
 }
 
+/** Mesma regra da migration perfil_profissional_saude. */
+async function vincularPerfilProfissional() {
+  const perfil = await ensureAcesso(
+    'Profissional de saúde',
+    'Optometristas e oftalmologistas: agenda, consultas, prontuários e receitas dos próprios pacientes',
+  );
+
+  const permissoes = await prisma.permissao.findMany({
+    where: {
+      empresaId: null,
+      OR: [
+        { modulo: { in: ['prontuario', 'receita'] } },
+        {
+          modulo: { in: ['agenda', 'atendimento'] },
+          acao: { in: ['listar', 'detalhar', 'criar', 'atualizar'] },
+        },
+        {
+          modulo: {
+            in: [
+              'pessoa',
+              'cliente',
+              'convenio',
+              'oftalmologista',
+              'optometrista',
+            ],
+          },
+          acao: { in: ['listar', 'detalhar'] },
+        },
+      ],
+    },
+    select: { id: true },
+  });
+
+  await prisma.acessoPermissao.createMany({
+    data: permissoes.map((permissao) => ({
+      acessoId: perfil.id,
+      permissaoId: permissao.id,
+    })),
+    skipDuplicates: true,
+  });
+}
+
 async function main() {
   try {
     console.log('Iniciando seed de acessos e permissões...');
@@ -296,6 +338,11 @@ async function main() {
       data: relacoesAcessoPermissao,
       skipDuplicates: true,
     });
+
+    // 4. Permissões do perfil de profissional de saúde. A migration que cria
+    // o perfil roda antes do seed num banco novo, quando ainda não existem
+    // permissões, e o perfil ficaria vazio.
+    await vincularPerfilProfissional();
 
     // 6. Upsert do Usuário Admin principal
     const superAdminSenhaHash = await bcrypt.hash(superAdminPassword, 10);
