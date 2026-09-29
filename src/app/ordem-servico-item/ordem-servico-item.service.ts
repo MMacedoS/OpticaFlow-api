@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, TipoMovimentoEstoque } from '@prisma/client';
+import { MovimentoEstoqueService } from 'src/app/movimento-estoque/movimento-estoque.service';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
@@ -8,11 +9,12 @@ import {
 } from './dto/ordem-servico-item.dto';
 import { OrdemServicoItemResumo } from './interfaces/ordem-servico-item.interface';
 
-class RegraNegocioError extends Error {}
-
 @Injectable()
 export class OrdemServicoItemService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly movimentoEstoque: MovimentoEstoqueService,
+  ) {}
 
   async create(dto: CreateOrdemServicoItemDto): Promise<ResponseJson> {
     const ordemServico = await this.prisma.ordemServico.findUnique({
@@ -95,33 +97,6 @@ export class OrdemServicoItemService {
           select: { id: true },
         });
 
-        if (dto.produtoId) {
-          const estoque = await this.obterEstoqueDaOrdemServico(
-            tx,
-            ordemServico.empresaId,
-            ordemServico.filialId,
-          );
-
-          await this.aplicarQuantidadeNoEstoque(
-            tx,
-            estoque.id,
-            dto.produtoId,
-            -dto.quantidade,
-          );
-
-          await tx.movimentoEstoque.create({
-            data: {
-              empresaId: ordemServico.empresaId,
-              estoqueId: estoque.id,
-              produtoId: dto.produtoId,
-              tipo: 'saida',
-              quantidade: dto.quantidade,
-              motivo: 'Saida por item de ordem de servico.',
-              referencia: this.referenciaMovimento(novoItem.id),
-            },
-          });
-        }
-
         await this.recalcularValorTotalOrdemServico(tx, dto.ordemServicoId);
 
         return novoItem;
@@ -129,10 +104,6 @@ export class OrdemServicoItemService {
 
       return this.findById(item.id);
     } catch (error) {
-      if (error instanceof RegraNegocioError) {
-        return { status: 422, message: error.message };
-      }
-
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2003'
@@ -295,77 +266,30 @@ export class OrdemServicoItemService {
       };
     }
 
-    const deltaQuantidade = quantidadeDestino - item.quantidade;
-
-    try {
-      await this.prisma.$transaction(async (tx) => {
-        if (item.produtoId) {
-          const estoque = await this.obterEstoqueDaOrdemServico(
-            tx,
-            item.ordem_servico.empresaId,
-            item.ordem_servico.filialId,
-          );
-
-          if (deltaQuantidade !== 0) {
-            await this.aplicarQuantidadeNoEstoque(
-              tx,
-              estoque.id,
-              item.produtoId,
-              -deltaQuantidade,
-            );
-          }
-
-          const movimento = await tx.movimentoEstoque.findFirst({
-            where: {
-              referencia: this.referenciaMovimento(id),
-              tipo: 'saida',
-              estoqueId: estoque.id,
-              produtoId: item.produtoId,
-            },
-            select: { id: true },
-          });
-
-          if (movimento) {
-            await tx.movimentoEstoque.update({
-              where: { id: movimento.id },
-              data: { quantidade: quantidadeDestino },
-            });
-          } else {
-            await tx.movimentoEstoque.create({
-              data: {
-                empresaId: item.ordem_servico.empresaId,
-                estoqueId: estoque.id,
-                produtoId: item.produtoId,
-                tipo: 'saida',
-                quantidade: quantidadeDestino,
-                motivo: 'Saida por item de ordem de servico.',
-                referencia: this.referenciaMovimento(id),
-              },
-            });
-          }
-        }
-
-        await tx.ordemServicoItem.update({
-          where: { id },
-          data: {
-            descricao_servico: dto.descricao_servico,
-            quantidade: dto.quantidade,
-            valor_unitario: dto.valor_unitario,
-            desconto: dto.desconto,
-          },
-        });
-
-        await this.recalcularValorTotalOrdemServico(tx, item.ordemServicoId);
-      });
-
-      return this.findById(id);
-    } catch (error) {
-      if (error instanceof RegraNegocioError) {
-        return { status: 422, message: error.message };
+    await this.prisma.$transaction(async (tx) => {
+      if (item.produtoId) {
+        await this.estornarBaixaAntiga(
+          tx,
+          item.id,
+          item.produtoId,
+          item.ordem_servico,
+        );
       }
 
-      throw error;
-    }
+      await tx.ordemServicoItem.update({
+        where: { id },
+        data: {
+          descricao_servico: dto.descricao_servico,
+          quantidade: dto.quantidade,
+          valor_unitario: dto.valor_unitario,
+          desconto: dto.desconto,
+        },
+      });
+
+      await this.recalcularValorTotalOrdemServico(tx, item.ordemServicoId);
+    });
+
+    return this.findById(id);
   }
 
   async deleteById(id: string): Promise<ResponseJson> {
@@ -392,49 +316,27 @@ export class OrdemServicoItemService {
       };
     }
 
-    try {
-      await this.prisma.$transaction(async (tx) => {
-        if (item.produtoId) {
-          const estoque = await this.obterEstoqueDaOrdemServico(
-            tx,
-            item.ordem_servico.empresaId,
-            item.ordem_servico.filialId,
-          );
-
-          await this.aplicarQuantidadeNoEstoque(
-            tx,
-            estoque.id,
-            item.produtoId,
-            item.quantidade,
-          );
-
-          await tx.movimentoEstoque.deleteMany({
-            where: {
-              referencia: this.referenciaMovimento(id),
-              estoqueId: estoque.id,
-              produtoId: item.produtoId,
-            },
-          });
-        }
-
-        await tx.ordemServicoItem.delete({
-          where: { id },
-        });
-
-        await this.recalcularValorTotalOrdemServico(tx, item.ordemServicoId);
-      });
-
-      return {
-        status: 200,
-        message: 'Item de ordem de servico deletado com sucesso.',
-      };
-    } catch (error) {
-      if (error instanceof RegraNegocioError) {
-        return { status: 422, message: error.message };
+    await this.prisma.$transaction(async (tx) => {
+      if (item.produtoId) {
+        await this.estornarBaixaAntiga(
+          tx,
+          item.id,
+          item.produtoId,
+          item.ordem_servico,
+        );
       }
 
-      throw error;
-    }
+      await tx.ordemServicoItem.delete({
+        where: { id },
+      });
+
+      await this.recalcularValorTotalOrdemServico(tx, item.ordemServicoId);
+    });
+
+    return {
+      status: 200,
+      message: 'Item de ordem de servico deletado com sucesso.',
+    };
   }
 
   private mapResumo(item: OrdemServicoItemResumo): OrdemServicoItemResumo {
@@ -457,72 +359,44 @@ export class OrdemServicoItemService {
     return quantidade * valorUnitario - (desconto ?? 0);
   }
 
-  private async obterEstoqueDaOrdemServico(
-    tx: PrismaService | Prisma.TransactionClient,
-    empresaId: string,
-    filialId: string,
-  ) {
-    const estoque = await tx.estoque.findUnique({
-      where: {
-        empresaId_filialId: {
-          empresaId,
-          filialId,
-        },
-      },
-      select: { id: true },
-    });
-
-    if (!estoque) {
-      throw new RegraNegocioError(
-        'Estoque nao encontrado para a filial da ordem de servico.',
-      );
-    }
-
-    return estoque;
-  }
-
-  private async aplicarQuantidadeNoEstoque(
-    tx: PrismaService | Prisma.TransactionClient,
-    estoqueId: string,
+  /**
+   * Os itens da OS nao movimentam mais o estoque: a baixa acontece ao
+   * finalizar a venda. Itens criados antes disso deram saida no estoque;
+   * ao editar ou remover um deles, a saida antiga e estornada uma unica vez.
+   */
+  private async estornarBaixaAntiga(
+    tx: Prisma.TransactionClient,
+    ordemServicoItemId: string,
     produtoId: string,
-    deltaQuantidade: number,
+    ordemServico: { empresaId: string; filialId: string },
   ): Promise<void> {
-    const itemEstoque = await tx.estoqueItem.findUnique({
-      where: {
-        estoqueId_produtoId: {
-          estoqueId,
-          produtoId,
-        },
-      },
-      select: {
-        id: true,
-        quantidade: true,
-      },
-    });
+    const referencia = this.referenciaMovimento(ordemServicoItemId);
+    const referenciaEstorno = `ESTORNO:${referencia}`;
 
-    const quantidadeAtual = itemEstoque?.quantidade ?? 0;
-    const quantidadeDestino = quantidadeAtual + deltaQuantidade;
+    const [baixa, estorno] = await Promise.all([
+      tx.movimentoEstoque.findFirst({
+        where: { referencia, tipo: TipoMovimentoEstoque.saida, produtoId },
+        select: { estoqueId: true, quantidade: true },
+      }),
+      tx.movimentoEstoque.findFirst({
+        where: { referencia: referenciaEstorno, produtoId },
+        select: { id: true },
+      }),
+    ]);
 
-    if (quantidadeDestino < 0) {
-      throw new RegraNegocioError(
-        'Quantidade em estoque insuficiente para concluir a operacao.',
-      );
-    }
-
-    if (itemEstoque) {
-      await tx.estoqueItem.update({
-        where: { id: itemEstoque.id },
-        data: { quantidade: quantidadeDestino },
-      });
+    if (!baixa || estorno) {
       return;
     }
 
-    await tx.estoqueItem.create({
-      data: {
-        estoqueId,
-        produtoId,
-        quantidade: quantidadeDestino,
-      },
+    await this.movimentoEstoque.registrar(tx, {
+      empresaId: ordemServico.empresaId,
+      estoqueId: baixa.estoqueId,
+      produtoId,
+      tipo: TipoMovimentoEstoque.entrada,
+      quantidade: baixa.quantidade,
+      motivo:
+        'Estorno de baixa feita pela ordem de servico (a baixa passou a ser feita na venda).',
+      referencia: referenciaEstorno,
     });
   }
 
