@@ -81,7 +81,6 @@ export class AgendaService {
               atendimentoId: atendimento?.id || null,
 
               numero: prepareNumeroOrdemServico(),
-              data_entrega: dto.dataHora ? new Date(dto.dataHora) : new Date(),
               status: dto.ordemServico.status,
               valor_total: dto.ordemServico.valor_total ?? 0,
               descricao: dto.ordemServico.descricao,

@@ -114,9 +114,9 @@ export class UpdateOrdemServicoDto {
 
   @IsOptional()
   @IsDateString({}, { message: 'A previsao_entrega deve ser uma data valida.' })
-  previsao_entrega?: string;
+  previsao_entrega?: string | null;
 
   @IsOptional()
   @IsDateString({}, { message: 'A data_entrega deve ser uma data valida.' })
-  data_entrega?: string;
+  data_entrega?: string | null;
 }

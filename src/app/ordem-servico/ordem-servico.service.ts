@@ -419,6 +419,8 @@ export class OrdemServicoService {
         empresaId: true,
         filialId: true,
         clienteId: true,
+        status: true,
+        data_entrega: true,
       },
     });
 
@@ -457,14 +459,37 @@ export class OrdemServicoService {
         numero: dto.numero,
         status: dto.status,
         descricao: dto.descricao,
-        previsao_entrega: dto.previsao_entrega
-          ? new Date(dto.previsao_entrega)
-          : undefined,
-        data_entrega: dto.data_entrega ? new Date(dto.data_entrega) : undefined,
+        previsao_entrega: this.dataOpcional(dto.previsao_entrega),
+        data_entrega: this.dataEntregaDestino(dto, ordemServico),
       },
     });
 
-    return this.findById(id, escopo);
+    return {
+      ...(await this.findById(id, escopo)),
+      message: 'Ordem de servico atualizada com sucesso.',
+    };
+  }
+
+  /** undefined mantem o valor atual; null limpa a data. */
+  private dataOpcional(valor?: string | null): Date | null | undefined {
+    if (valor === null) return null;
+    return valor ? new Date(valor) : undefined;
+  }
+
+  /** Ao finalizar sem data de entrega informada, registra a entrega agora. */
+  private dataEntregaDestino(
+    dto: UpdateOrdemServicoDto,
+    atual: { status: StatusOrdemServico; data_entrega: Date | null },
+  ): Date | null | undefined {
+    const finalizando =
+      dto.status === StatusOrdemServico.finalizada &&
+      atual.status !== StatusOrdemServico.finalizada;
+
+    if (finalizando && !dto.data_entrega && !atual.data_entrega) {
+      return new Date();
+    }
+
+    return this.dataOpcional(dto.data_entrega);
   }
 
   async deleteById(
@@ -530,10 +555,7 @@ export class OrdemServicoService {
       status: ordemServico.status,
       descricao: ordemServico.descricao ?? null,
       previsao_entrega: ordemServico.previsao_entrega ?? null,
-      data_entrega:
-        ordemServico.data_entrega ??
-        ordemServico.atendimento?.dataAtendimento ??
-        null,
+      data_entrega: ordemServico.data_entrega ?? null,
       valor_total: ordemServico.valor_total,
       createdAt: ordemServico.createdAt,
       updatedAt: ordemServico.updatedAt,

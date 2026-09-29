@@ -118,9 +118,6 @@ export class AtendimentoService {
             clienteId: dto.clienteId || null,
             atendimentoId: atend.id,
             numero: prepareNumeroOrdemServico(),
-            data_entrega: dto.dataAtendimento
-              ? new Date(dto.dataAtendimento)
-              : new Date(),
             status: dto.ordemServico.status,
             valor_total: dto.ordemServico.valor_total ?? 0,
             descricao: dto.ordemServico.descricao,
