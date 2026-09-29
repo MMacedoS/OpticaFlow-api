@@ -9,52 +9,71 @@ import {
   Put,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { EmpresaService } from './empresa.service';
-import { AuthGuard } from 'src/guards/auth/auth.guard';
+import { Escopo } from 'src/common/escopo/escopo.decorator';
+import type { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
+import { AuthGuard } from 'src/guards/auth/auth.guard';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 import { CreateEmpresaDto } from './dto/createEmpresa.dto';
 import { UpdateEmpresaDto } from './dto/updateEmpresa.dto';
+import { EmpresaService } from './empresa.service';
 
 @Controller('empresa')
 @UseGuards(AuthGuard, AcessoGuard)
+@UseInterceptors(EnrichUserInterceptor)
 export class EmpresaController {
   constructor(private readonly empresaService: EmpresaService) {}
 
   @Get()
   async getAllEmpresas(
+    @Escopo() escopo: EscopoUsuario,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
     @Query('status') status?: string,
   ) {
-    const empresas = await this.empresaService.findAll(
+    return this.empresaService.findAll(
+      escopo,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 10,
       search ? search : '',
       status ? status : '',
     );
-
-    return empresas;
   }
 
   @Post()
-  async createEmpresa(@Body() data: CreateEmpresaDto) {
-    return await this.empresaService.create(data);
+  async createEmpresa(
+    @Body() data: CreateEmpresaDto,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.empresaService.create(data, escopo);
   }
 
   @Put(':id')
-  async updateEmpresa(@Param('id') id: string, @Body() data: UpdateEmpresaDto) {
-    return await this.empresaService.update(id, data);
+  async updateEmpresa(
+    @Param('id') id: string,
+    @Body() data: UpdateEmpresaDto,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.empresaService.update(id, data, escopo);
   }
 
   @Patch(':id/status')
-  async updateStatus(@Param('id') id: string, @Body('status') status: string) {
-    return await this.empresaService.updateStatus(id, status);
+  async updateStatus(
+    @Param('id') id: string,
+    @Body('status') status: string,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.empresaService.updateStatus(id, status, escopo);
   }
 
   @Delete(':id')
-  async deleteEmpresa(@Param('id') id: string) {
-    return await this.empresaService.deleteById(id);
+  async deleteEmpresa(
+    @Param('id') id: string,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.empresaService.deleteById(id, escopo);
   }
 }

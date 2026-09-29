@@ -1,5 +1,10 @@
-import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Convenio, Prisma } from '@prisma/client';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateConvenioDto, UpdateConvenioDto } from './dto/convenio.dto';
@@ -9,9 +14,19 @@ import { ConvenioResumo } from './interfaces/convenio.interface';
 export class ConvenioService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateConvenioDto): Promise<ResponseJson> {
+  async create(
+    dto: CreateConvenioDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    // Usuario comum sempre cria na propria empresa; so o superadmin escolhe.
+    const empresaId = escopo.superadmin ? dto.empresaId : escopo.empresaId;
+
+    if (!empresaId) {
+      throw new BadRequestException('Informe a empresa do convênio.');
+    }
+
     const empresa = await this.prisma.empresa.findUnique({
-      where: { id: dto.empresaId },
+      where: { id: empresaId },
       select: { id: true },
     });
 
@@ -21,7 +36,7 @@ export class ConvenioService {
 
     const convenioExistente = await this.prisma.convenio.findFirst({
       where: {
-        empresaId: dto.empresaId,
+        empresaId,
         nome: { equals: dto.nome, mode: 'insensitive' },
       },
       select: { id: true },
@@ -37,7 +52,7 @@ export class ConvenioService {
     try {
       const convenio = await this.prisma.convenio.create({
         data: {
-          empresaId: dto.empresaId || '',
+          empresaId,
           nome: dto.nome,
           registro: dto.registro,
         },
@@ -122,8 +137,9 @@ export class ConvenioService {
     };
   }
 
-  async findAll() {
+  async findAll(escopo: EscopoUsuario) {
     const convenios = await this.prisma.convenio.findMany({
+      where: this.filtroEmpresa(escopo),
       orderBy: {
         createdAt: 'desc',
       },
@@ -138,14 +154,8 @@ export class ConvenioService {
     };
   }
 
-  async findById(id: string): Promise<ResponseJson> {
-    const convenio = await this.prisma.convenio.findUnique({
-      where: { id },
-    });
-
-    if (!convenio) {
-      return { status: 422, message: 'Convênio não encontrado.' };
-    }
+  async findById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const convenio = await this.buscarNoEscopo(id, escopo);
 
     return {
       status: 200,
@@ -154,19 +164,12 @@ export class ConvenioService {
     };
   }
 
-  async update(id: string, dto: UpdateConvenioDto): Promise<ResponseJson> {
-    const convenio = await this.prisma.convenio.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        empresaId: true,
-        nome: true,
-      },
-    });
-
-    if (!convenio) {
-      return { status: 422, message: 'Convênio não encontrado.' };
-    }
+  async update(
+    id: string,
+    dto: UpdateConvenioDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const convenio = await this.buscarNoEscopo(id, escopo);
 
     if (dto.nome && dto.nome.toLowerCase() !== convenio.nome.toLowerCase()) {
       const convenioComNome = await this.prisma.convenio.findFirst({
@@ -200,12 +203,12 @@ export class ConvenioService {
     };
   }
 
-  async updateStatus(id: string, status: string): Promise<ResponseJson> {
-    const convenio = await this.prisma.convenio.findUnique({ where: { id } });
-
-    if (!convenio) {
-      return { status: 422, message: 'Convênio não encontrado.' };
-    }
+  async updateStatus(
+    id: string,
+    status: string,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    await this.buscarNoEscopo(id, escopo);
 
     const updatedConvenio = await this.prisma.convenio.update({
       where: { id },
@@ -219,9 +222,9 @@ export class ConvenioService {
     };
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const convenio = await this.prisma.convenio.findUnique({
-      where: { id },
+  async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const convenio = await this.prisma.convenio.findFirst({
+      where: { id, ...this.filtroEmpresa(escopo) },
       select: {
         id: true,
         clientes: {
@@ -236,7 +239,7 @@ export class ConvenioService {
     });
 
     if (!convenio) {
-      return { status: 422, message: 'Convênio não encontrado.' };
+      throw new NotFoundException('Convênio não encontrado.');
     }
 
     if (convenio.clientes.length > 0 || convenio.atendimentos.length > 0) {
@@ -255,6 +258,25 @@ export class ConvenioService {
       status: 200,
       message: 'Convênio deletado com sucesso.',
     };
+  }
+
+  private filtroEmpresa(escopo: EscopoUsuario): Prisma.ConvenioWhereInput {
+    return escopo.superadmin ? {} : { empresaId: escopo.empresaId };
+  }
+
+  private async buscarNoEscopo(
+    id: string,
+    escopo: EscopoUsuario,
+  ): Promise<Convenio> {
+    const convenio = await this.prisma.convenio.findFirst({
+      where: { id, ...this.filtroEmpresa(escopo) },
+    });
+
+    if (!convenio) {
+      throw new NotFoundException('Convênio não encontrado.');
+    }
+
+    return convenio;
   }
 
   private mapResumo(convenio: ConvenioResumo): ConvenioResumo {

@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
-import { Prisma, Status } from '@prisma/client';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { Pessoa, Prisma, Status } from '@prisma/client';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PessoaDto } from './dto/pessoa';
+import { filtroPessoaNoEscopo, validarFilialNoEscopo } from './escopo-pessoa';
 
 @Injectable()
 export class PessoaService {
@@ -129,21 +131,24 @@ export class PessoaService {
     });
   }
 
-  async update(id: string, data: PessoaDto) {
-    if (data.filialId) {
-      const filial = await this.prisma.filial.findUnique({
-        where: { id: data.filialId },
-      });
-
-      if (!filial) {
-        return { status: 404, message: 'Filial não encontrada.' };
-      }
-    }
-
-    const pessoa = await this.findById(id);
+  /** Busca a pessoa pelo id dentro da empresa/filial do usuario. */
+  async buscarNoEscopo(id: string, escopo: EscopoUsuario): Promise<Pessoa> {
+    const pessoa = await this.prisma.pessoa.findFirst({
+      where: { id, ...filtroPessoaNoEscopo(escopo) },
+    });
 
     if (!pessoa) {
-      return { status: 404, message: 'Pessoa não encontrada.' };
+      throw new NotFoundException('Pessoa não encontrada.');
+    }
+
+    return pessoa;
+  }
+
+  async update(id: string, data: PessoaDto, escopo: EscopoUsuario) {
+    const pessoa = await this.buscarNoEscopo(id, escopo);
+
+    if (data.filialId && data.filialId !== pessoa.filialId) {
+      await validarFilialNoEscopo(this.prisma, escopo, data.filialId);
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -191,12 +196,8 @@ export class PessoaService {
     });
   }
 
-  async updateStatus(id: string, status: Status) {
-    const pessoa = await this.findById(id);
-
-    if (!pessoa) {
-      return { status: 404, message: 'Pessoa não encontrada.' };
-    }
+  async updateStatus(id: string, status: Status, escopo: EscopoUsuario) {
+    await this.buscarNoEscopo(id, escopo);
 
     return this.prisma.$transaction(async (tx) => {
       await tx.cliente.updateMany({
@@ -216,12 +217,8 @@ export class PessoaService {
     });
   }
 
-  async delete(id: string) {
-    const pessoa = await this.findById(id);
-
-    if (!pessoa) {
-      return { status: 404, message: 'Pessoa não encontrada.' };
-    }
+  async delete(id: string, escopo: EscopoUsuario) {
+    await this.buscarNoEscopo(id, escopo);
 
     try {
       const deleted = await this.prisma.$transaction(async (tx) => {

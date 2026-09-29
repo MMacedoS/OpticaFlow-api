@@ -10,21 +10,22 @@ import {
   Query,
   Req,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { FilialService } from './filial.service';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { ConfigFilialDto, CreateFilialDto } from './dto/filial.dto';
-import {
-  ContatoEmpresaDto,
-  EnderecoEmpresaDto,
-} from 'src/app/empresa/dto/createEmpresa.dto';
 import { UsuarioService } from 'src/app/usuario/usuario.service';
 import { UpdateFilialDto } from './dto/update.dto';
 import { Status } from '@prisma/client';
+import { Escopo } from 'src/common/escopo/escopo.decorator';
+import type { EscopoUsuario } from 'src/common/escopo/escopo.interface';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 
 @Controller('filial')
 @UseGuards(AuthGuard, AcessoGuard)
+@UseInterceptors(EnrichUserInterceptor)
 export class FilialController {
   constructor(
     private readonly filialService: FilialService,
@@ -33,28 +34,19 @@ export class FilialController {
 
   @Get()
   async getAllFiliais(
+    @Escopo() escopo: EscopoUsuario,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
-    @Query('status') status?: string,
-    @Req()
-    request?: {
-      user?: {
-        sub: string;
-      };
-    },
+    @Query('empresaId') empresaId?: string,
   ) {
-    const usuarioId = request?.user?.sub;
-
-    if (!usuarioId) {
-      return { status: 401, message: 'Usuário não autenticado.' };
-    }
-
     return this.filialService.findAllByEmpresa(
-      usuarioId,
+      escopo,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 10,
       search ?? '',
+      undefined,
+      empresaId,
     );
   }
 
@@ -92,45 +84,45 @@ export class FilialController {
     return this.filialService.create(dto);
   }
 
-  @Get('empresa/:empresaId')
-  async getAllByEmpresa(
-    @Param('empresaId') empresaId: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-    @Query('search') search?: string,
-  ) {
-    return this.filialService.findAllByEmpresa(
-      empresaId,
-      page ? parseInt(page, 10) : 1,
-      limit ? parseInt(limit, 10) : 10,
-      search ?? '',
-    );
-  }
-
   @Get(':id')
-  async getFilialById(@Param('id') id: string) {
-    return this.filialService.findById(id);
+  async getFilialById(
+    @Param('id') id: string,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.filialService.findById(id, escopo);
   }
 
   @Put(':id')
-  async updateFilial(@Param('id') id: string, @Body() dto: UpdateFilialDto) {
-    return this.filialService.update(id, dto);
+  async updateFilial(
+    @Param('id') id: string,
+    @Body() dto: UpdateFilialDto,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.filialService.update(id, dto, escopo);
   }
 
   @Patch(':id/status')
-  async updateStatus(@Param('id') id: string, @Body('status') status: string) {
-    return this.filialService.updateStatus(id, status as Status);
+  async updateStatus(
+    @Param('id') id: string,
+    @Body('status') status: string,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.filialService.updateStatus(id, status as Status, escopo);
   }
 
   @Delete(':id')
-  async deleteFilial(@Param('id') id: string) {
-    return this.filialService.deleteById(id);
+  async deleteFilial(@Param('id') id: string, @Escopo() escopo: EscopoUsuario) {
+    return this.filialService.deleteById(id, escopo);
   }
 
   // ─── Config ───────────────────────────────────────────────────────────────
 
   @Put(':id/config')
-  async upsertConfig(@Param('id') id: string, @Body() dto: ConfigFilialDto) {
-    return this.filialService.upsertConfig(id, dto);
+  async upsertConfig(
+    @Param('id') id: string,
+    @Body() dto: ConfigFilialDto,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.filialService.upsertConfig(id, dto, escopo);
   }
 }

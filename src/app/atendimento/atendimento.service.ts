@@ -102,6 +102,11 @@ export class AtendimentoService {
       await this.validarConvenio(dto.convenioId, filial.empresaId);
     }
 
+    await this.validarProdutosDaEmpresa(
+      (dto.ordemServico?.itens ?? []).map((item) => item.produtoId),
+      filial.empresaId,
+    );
+
     try {
       const atendimento = await this.prisma.$transaction(async (tx) => {
         const atend = await tx.atendimento.create({
@@ -514,6 +519,28 @@ export class AtendimentoService {
     }
 
     throw error;
+  }
+
+  /** Os produtos dos itens da OS precisam ser da empresa do atendimento. */
+  private async validarProdutosDaEmpresa(
+    produtoIds: (string | null | undefined)[],
+    empresaId: string,
+  ): Promise<void> {
+    const ids = [...new Set(produtoIds.filter((id): id is string => !!id))];
+
+    if (ids.length === 0) {
+      return;
+    }
+
+    const encontrados = await this.prisma.produto.count({
+      where: { id: { in: ids }, empresaId },
+    });
+
+    if (encontrados !== ids.length) {
+      throw new UnprocessableEntityException(
+        'Produto não encontrado para a empresa do atendimento.',
+      );
+    }
   }
 
   private async validarPaciente(

@@ -66,44 +66,58 @@ export class OptometristaController {
     return optometristas;
   }
 
+  /** Lista completa (sem paginacao) para selects do frontend. */
   @Get('list')
   async getAllByFilialList(
+    @Escopo() escopo: EscopoUsuario,
     @Query('search') search?: string,
-    @CurrentUser() user?: any,
+    @Query('filialId') filialId?: string,
   ) {
-    if (!user || !user.pessoa || !user.pessoa.filialId) {
-      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
-    }
-    const optometristas = await this.optometristaService.findAllByFilial(
-      user.pessoa.filialId,
+    const filtroPessoa = await resolverFiltroFilial(
+      this.prisma,
+      escopo,
+      filialId,
+    );
+
+    return this.optometristaService.findAllByFilial(
+      filtroPessoa,
       1,
       1000,
       search ?? '',
     );
-
-    return optometristas;
   }
 
   @Get(':id')
-  async getOptometristaById(@Param('id') id: string) {
-    return this.optometristaService.findById(id);
+  async getOptometristaById(
+    @Param('id') id: string,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.optometristaService.findById(id, escopo);
   }
 
   @Put(':id')
-  async updateOptometrista(@Param('id') id: string, @Body() dto: UpdateDto) {
-    return this.optometristaService.update(id, dto);
+  async updateOptometrista(
+    @Param('id') id: string,
+    @Body() dto: UpdateDto,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.optometristaService.update(id, dto, escopo);
   }
 
   @Patch(':id/status')
   async updateOptometristaStatus(
     @Param('id') id: string,
     @Body('status') status: Status,
+    @Escopo() escopo: EscopoUsuario,
   ) {
-    return this.optometristaService.updateStatus(id, status);
+    return this.optometristaService.updateStatus(id, status, escopo);
   }
 
   @Delete(':id')
-  async deleteOptometrista(@Param('id') id: string) {
-    return this.optometristaService.deleteById(id);
+  async deleteOptometrista(
+    @Param('id') id: string,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.optometristaService.deleteById(id, escopo);
   }
 }

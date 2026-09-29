@@ -291,7 +291,7 @@ model Usuario {
   id                        String                 @id @default(cuid())
   email                     String                 @unique
   senha                     String
-  username                  String?                @unique
+  username                  String?
   status                    Status                 @default(ativo)
   ultimo_login              DateTime?
   pessoaId                  String?                @unique

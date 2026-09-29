@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Prisma, Status } from '@prisma/client';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateDto, UpdateDto } from './dto/optometrista.dto';
@@ -228,9 +229,9 @@ export class OptometristaService {
     };
   }
 
-  async findById(id: string): Promise<ResponseJson> {
-    const optometrista = await this.prisma.optometrista.findUnique({
-      where: { id },
+  async findById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const optometrista = await this.prisma.optometrista.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       select: {
         id: true,
         pessoaId: true,
@@ -256,7 +257,7 @@ export class OptometristaService {
     });
 
     if (!optometrista) {
-      return { status: 422, message: 'Optometrista não encontrado.' };
+      throw new NotFoundException('Optometrista não encontrado.');
     }
 
     return {
@@ -276,20 +277,25 @@ export class OptometristaService {
     };
   }
 
-  async update(id: string, dto: UpdateDto): Promise<ResponseJson> {
-    const optometrista = await this.prisma.optometrista.findUnique({
-      where: { id },
+  async update(
+    id: string,
+    dto: UpdateDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const optometrista = await this.prisma.optometrista.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       include: {
         pessoa: {
           include: {
             usuario: true,
+            filial: { select: { empresaId: true } },
           },
         },
       },
     });
 
     if (!optometrista) {
-      return { status: 422, message: 'optometrista não encontrado.' };
+      throw new NotFoundException('Optometrista não encontrado.');
     }
 
     const usuario = optometrista.pessoa.usuario;
@@ -328,7 +334,13 @@ export class OptometristaService {
       select: { id: true, empresaId: true },
     });
 
-    if (!filialDestino) {
+    // A nova filial precisa ser da mesma empresa do optometrista (e da filial do
+    // usuario, quando ele tem filial): nunca move o usuario de empresa.
+    if (
+      !filialDestino ||
+      filialDestino.empresaId !== optometrista.pessoa.filial.empresaId ||
+      (escopo.filialId && filialDestino.id !== escopo.filialId)
+    ) {
       return { status: 422, message: 'Filial não encontrada.' };
     }
 
@@ -374,19 +386,22 @@ export class OptometristaService {
       await tx.usuario.update({
         where: { id: usuario.id },
         data: {
-          empresaId: filialDestino.empresaId,
           email: dto.pessoa.email,
           username: dto.pessoa.nome,
         },
       });
     });
 
-    return this.findById(id);
+    return this.findById(id, escopo);
   }
 
-  async updateStatus(id: string, status: Status): Promise<ResponseJson> {
-    const optometrista = await this.prisma.optometrista.findUnique({
-      where: { id },
+  async updateStatus(
+    id: string,
+    status: Status,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const optometrista = await this.prisma.optometrista.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       include: {
         pessoa: {
           include: {
@@ -397,7 +412,7 @@ export class OptometristaService {
     });
 
     if (!optometrista) {
-      return { status: 422, message: 'Optometrista não encontrado.' };
+      throw new NotFoundException('Optometrista não encontrado.');
     }
 
     const usuario = optometrista.pessoa.usuario;
@@ -421,12 +436,12 @@ export class OptometristaService {
       });
     });
 
-    return this.findById(id);
+    return this.findById(id, escopo);
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const optometrista = await this.prisma.optometrista.findUnique({
-      where: { id },
+  async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const optometrista = await this.prisma.optometrista.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       include: {
         pessoa: {
           include: {
@@ -439,7 +454,7 @@ export class OptometristaService {
     });
 
     if (!optometrista) {
-      return { status: 422, message: 'Optometrista não encontrado.' };
+      throw new NotFoundException('Optometrista não encontrado.');
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -459,5 +474,22 @@ export class OptometristaService {
     });
 
     return { status: 200, message: 'Optometrista deletado com sucesso.' };
+  }
+
+  /**
+   * Empresa do usuario e, se ele tiver filial, a filial dele. Superadmin nao
+   * tem restricao.
+   */
+  private filtroEscopo(escopo: EscopoUsuario): Prisma.OptometristaWhereInput {
+    if (escopo.superadmin) {
+      return {};
+    }
+
+    return {
+      pessoa: {
+        filial: { empresaId: escopo.empresaId },
+        ...(escopo.filialId && { filialId: escopo.filialId }),
+      },
+    };
   }
 }

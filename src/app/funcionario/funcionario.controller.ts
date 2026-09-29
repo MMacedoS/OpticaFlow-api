@@ -17,6 +17,8 @@ import { FuncionarioService } from './funcionario.service';
 import { FuncionarioDto, UpdateFuncionarioDto } from './dto/funcionario.dto';
 import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
+import { Escopo } from 'src/common/escopo/escopo.decorator';
+import type { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 
 @Controller('funcionario')
 @UseGuards(AuthGuard, AcessoGuard)
@@ -79,29 +81,36 @@ export class FuncionarioController {
   // }
 
   @Get(':id')
-  async getFuncionarioById(@Param('id') id: string) {
-    return this.funcionarioService.findById(id);
+  async getFuncionarioById(
+    @Param('id') id: string,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.funcionarioService.findById(id, escopo);
   }
 
   @Put(':id')
   async updateFuncionario(
     @Param('id') id: string,
     @Body() dto: UpdateFuncionarioDto,
-    @CurrentUser() user?: { id: string },
+    @Escopo() escopo: EscopoUsuario,
   ) {
-    return this.funcionarioService.update(id, dto, user?.id);
+    return this.funcionarioService.update(id, dto, escopo);
   }
 
   @Patch(':id/status')
   async updateFuncionarioStatus(
     @Param('id') id: string,
     @Body('status') status: string,
+    @Escopo() escopo: EscopoUsuario,
   ) {
-    return this.funcionarioService.updateStatus(id, status);
+    return this.funcionarioService.updateStatus(id, status, escopo);
   }
 
   @Delete(':id')
-  async deleteFuncionario(@Param('id') id: string) {
-    return this.funcionarioService.deleteById(id);
+  async deleteFuncionario(
+    @Param('id') id: string,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.funcionarioService.deleteById(id, escopo);
   }
 }

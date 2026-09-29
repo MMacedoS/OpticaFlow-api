@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Prisma, Status } from '@prisma/client';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { OftalmologistaResumo } from './interfaces/oftalmologista.interface';
@@ -205,9 +206,9 @@ export class OftalmologistaService {
     };
   }
 
-  async findById(id: string): Promise<ResponseJson> {
-    const oftalmologista = await this.prisma.oftalmologista.findUnique({
-      where: { id },
+  async findById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const oftalmologista = await this.prisma.oftalmologista.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       select: {
         id: true,
         pessoaId: true,
@@ -233,7 +234,7 @@ export class OftalmologistaService {
     });
 
     if (!oftalmologista) {
-      return { status: 422, message: 'Oftalmologista não encontrado.' };
+      throw new NotFoundException('Oftalmologista não encontrado.');
     }
 
     return {
@@ -253,20 +254,25 @@ export class OftalmologistaService {
     };
   }
 
-  async update(id: string, dto: UpdateDto): Promise<ResponseJson> {
-    const oftalmologista = await this.prisma.oftalmologista.findUnique({
-      where: { id },
+  async update(
+    id: string,
+    dto: UpdateDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const oftalmologista = await this.prisma.oftalmologista.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       include: {
         pessoa: {
           include: {
             usuario: true,
+            filial: { select: { empresaId: true } },
           },
         },
       },
     });
 
     if (!oftalmologista) {
-      return { status: 422, message: 'Oftalmologista não encontrado.' };
+      throw new NotFoundException('Oftalmologista não encontrado.');
     }
 
     const usuario = oftalmologista.pessoa.usuario;
@@ -306,7 +312,13 @@ export class OftalmologistaService {
       select: { id: true, empresaId: true },
     });
 
-    if (!filialDestino) {
+    // A nova filial precisa ser da mesma empresa do oftalmologista (e da filial do
+    // usuario, quando ele tem filial): nunca move o usuario de empresa.
+    if (
+      !filialDestino ||
+      filialDestino.empresaId !== oftalmologista.pessoa.filial.empresaId ||
+      (escopo.filialId && filialDestino.id !== escopo.filialId)
+    ) {
       return { status: 422, message: 'Filial não encontrada.' };
     }
 
@@ -351,19 +363,22 @@ export class OftalmologistaService {
       await tx.usuario.update({
         where: { id: usuario.id },
         data: {
-          empresaId: filialDestino.empresaId,
           email: dto.pessoa.email,
           username: dto.pessoa.nome,
         },
       });
     });
 
-    return this.findById(id);
+    return this.findById(id, escopo);
   }
 
-  async updateStatus(id: string, status: Status): Promise<ResponseJson> {
-    const oftalmologista = await this.prisma.oftalmologista.findUnique({
-      where: { id },
+  async updateStatus(
+    id: string,
+    status: Status,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const oftalmologista = await this.prisma.oftalmologista.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       include: {
         pessoa: {
           include: {
@@ -374,7 +389,7 @@ export class OftalmologistaService {
     });
 
     if (!oftalmologista) {
-      return { status: 422, message: 'Oftalmologista não encontrado.' };
+      throw new NotFoundException('Oftalmologista não encontrado.');
     }
 
     const usuario = oftalmologista.pessoa.usuario;
@@ -401,9 +416,9 @@ export class OftalmologistaService {
     return { status: 200, message: 'Status do oftalmologista atualizado.' };
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const oftalmologista = await this.prisma.oftalmologista.findUnique({
-      where: { id },
+  async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const oftalmologista = await this.prisma.oftalmologista.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       include: {
         pessoa: {
           include: {
@@ -416,7 +431,7 @@ export class OftalmologistaService {
     });
 
     if (!oftalmologista) {
-      return { status: 422, message: 'Oftalmologista não encontrado.' };
+      throw new NotFoundException('Oftalmologista não encontrado.');
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -436,5 +451,22 @@ export class OftalmologistaService {
     });
 
     return { status: 200, message: 'Oftalmologista deletado com sucesso.' };
+  }
+
+  /**
+   * Empresa do usuario e, se ele tiver filial, a filial dele. Superadmin nao
+   * tem restricao.
+   */
+  private filtroEscopo(escopo: EscopoUsuario): Prisma.OftalmologistaWhereInput {
+    if (escopo.superadmin) {
+      return {};
+    }
+
+    return {
+      pessoa: {
+        filial: { empresaId: escopo.empresaId },
+        ...(escopo.filialId && { filialId: escopo.filialId }),
+      },
+    };
   }
 }

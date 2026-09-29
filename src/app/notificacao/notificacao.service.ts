@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CanalNotificacao, Prisma } from '@prisma/client';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
@@ -12,13 +13,36 @@ import { NotificacaoResumo } from './interfaces/notificacao.interface';
 export class NotificacaoService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateNotificacaoDto): Promise<ResponseJson> {
-    const validacao = await this.validarRelacionamentos(dto.empresaId, {
-      filialId: dto.filialId,
-      pessoaId: dto.pessoaId,
-      usuarioDestinoId: dto.usuarioDestinoId,
-      usuarioRemetenteId: dto.usuarioRemetenteId,
-    });
+  async create(
+    dto: CreateNotificacaoDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    // Usuario comum sempre grava na propria empresa (e filial, se tiver).
+    const empresaId = escopo.superadmin ? dto.empresaId : escopo.empresaId;
+
+    if (!empresaId) {
+      return { status: 422, message: 'Informe a empresa da notificacao.' };
+    }
+
+    if (escopo.filialId && dto.filialId && dto.filialId !== escopo.filialId) {
+      return {
+        status: 422,
+        message: 'Filial nao encontrada para a empresa informada.',
+      };
+    }
+
+    const filialId = escopo.filialId ?? dto.filialId;
+
+    const validacao = await this.validarRelacionamentos(
+      empresaId,
+      {
+        filialId,
+        pessoaId: dto.pessoaId,
+        usuarioDestinoId: dto.usuarioDestinoId,
+        usuarioRemetenteId: dto.usuarioRemetenteId,
+      },
+      escopo.filialId,
+    );
 
     if (!validacao.valido) {
       return { status: 422, message: validacao.mensagem };
@@ -26,8 +50,8 @@ export class NotificacaoService {
 
     const notificacao = await this.prisma.notificacao.create({
       data: {
-        empresaId: dto.empresaId,
-        filialId: dto.filialId,
+        empresaId,
+        filialId,
         pessoaId: dto.pessoaId,
         usuarioDestinoId: dto.usuarioDestinoId,
         usuarioRemetenteId: dto.usuarioRemetenteId,
@@ -46,6 +70,7 @@ export class NotificacaoService {
 
   async findAllByEmpresa(
     empresaId: string,
+    escopo: EscopoUsuario,
     page: number = 1,
     limit: number = 10,
     search: string = '',
@@ -56,6 +81,10 @@ export class NotificacaoService {
     canal?: CanalNotificacao,
     lida?: boolean,
   ): Promise<ResponseJson> {
+    if (!escopo.superadmin && empresaId !== escopo.empresaId) {
+      throw new NotFoundException('Empresa nao encontrada.');
+    }
+
     const empresa = await this.prisma.empresa.findUnique({
       where: { id: empresaId },
       select: { id: true },
@@ -65,13 +94,19 @@ export class NotificacaoService {
       return { status: 422, message: 'Empresa nao encontrada.' };
     }
 
+    if (escopo.filialId && filialId && filialId !== escopo.filialId) {
+      throw new NotFoundException('Filial nao encontrada.');
+    }
+
+    const filialFiltro = escopo.filialId ?? filialId;
+
     const pageNumber = Math.max(1, page);
     const limitNumber = Math.max(1, limit);
     const skip = (pageNumber - 1) * limitNumber;
 
     const where: Prisma.NotificacaoWhereInput = {
       empresaId,
-      ...(filialId && { filialId }),
+      ...(filialFiltro && { filialId: filialFiltro }),
       ...(pessoaId && { pessoaId }),
       ...(usuarioDestinoId && { usuarioDestinoId }),
       ...(usuarioRemetenteId && { usuarioRemetenteId }),
@@ -132,9 +167,9 @@ export class NotificacaoService {
     };
   }
 
-  async findById(id: string): Promise<ResponseJson> {
-    const notificacao = await this.prisma.notificacao.findUnique({
-      where: { id },
+  async findById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const notificacao = await this.prisma.notificacao.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       include: {
         filial: { select: { id: true, nome: true } },
         pessoa: { select: { id: true, nome: true } },
@@ -146,7 +181,7 @@ export class NotificacaoService {
     });
 
     if (!notificacao) {
-      return { status: 422, message: 'Notificacao nao encontrada.' };
+      throw new NotFoundException('Notificacao nao encontrada.');
     }
 
     return {
@@ -162,9 +197,20 @@ export class NotificacaoService {
     };
   }
 
-  async update(id: string, dto: UpdateNotificacaoDto): Promise<ResponseJson> {
-    const notificacao = await this.prisma.notificacao.findUnique({
-      where: { id },
+  async update(
+    id: string,
+    dto: UpdateNotificacaoDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    if (escopo.filialId && dto.filialId && dto.filialId !== escopo.filialId) {
+      return {
+        status: 422,
+        message: 'Filial nao encontrada para a empresa informada.',
+      };
+    }
+
+    const notificacao = await this.prisma.notificacao.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       select: {
         id: true,
         empresaId: true,
@@ -176,17 +222,21 @@ export class NotificacaoService {
     });
 
     if (!notificacao) {
-      return { status: 422, message: 'Notificacao nao encontrada.' };
+      throw new NotFoundException('Notificacao nao encontrada.');
     }
 
-    const validacao = await this.validarRelacionamentos(notificacao.empresaId, {
-      filialId: dto.filialId ?? notificacao.filialId ?? undefined,
-      pessoaId: dto.pessoaId ?? notificacao.pessoaId ?? undefined,
-      usuarioDestinoId:
-        dto.usuarioDestinoId ?? notificacao.usuarioDestinoId ?? undefined,
-      usuarioRemetenteId:
-        dto.usuarioRemetenteId ?? notificacao.usuarioRemetenteId ?? undefined,
-    });
+    const validacao = await this.validarRelacionamentos(
+      notificacao.empresaId,
+      {
+        filialId: dto.filialId ?? notificacao.filialId ?? undefined,
+        pessoaId: dto.pessoaId ?? notificacao.pessoaId ?? undefined,
+        usuarioDestinoId:
+          dto.usuarioDestinoId ?? notificacao.usuarioDestinoId ?? undefined,
+        usuarioRemetenteId:
+          dto.usuarioRemetenteId ?? notificacao.usuarioRemetenteId ?? undefined,
+      },
+      escopo.filialId,
+    );
 
     if (!validacao.valido) {
       return { status: 422, message: validacao.mensagem };
@@ -216,14 +266,17 @@ export class NotificacaoService {
     };
   }
 
-  async marcarComoLida(id: string): Promise<ResponseJson> {
-    const notificacao = await this.prisma.notificacao.findUnique({
-      where: { id },
+  async marcarComoLida(
+    id: string,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const notificacao = await this.prisma.notificacao.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       select: { id: true },
     });
 
     if (!notificacao) {
-      return { status: 422, message: 'Notificacao nao encontrada.' };
+      throw new NotFoundException('Notificacao nao encontrada.');
     }
 
     const notificacaoAtualizada = await this.prisma.notificacao.update({
@@ -238,14 +291,17 @@ export class NotificacaoService {
     };
   }
 
-  async marcarComoNaoLida(id: string): Promise<ResponseJson> {
-    const notificacao = await this.prisma.notificacao.findUnique({
-      where: { id },
+  async marcarComoNaoLida(
+    id: string,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const notificacao = await this.prisma.notificacao.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       select: { id: true },
     });
 
     if (!notificacao) {
-      return { status: 422, message: 'Notificacao nao encontrada.' };
+      throw new NotFoundException('Notificacao nao encontrada.');
     }
 
     const notificacaoAtualizada = await this.prisma.notificacao.update({
@@ -260,14 +316,14 @@ export class NotificacaoService {
     };
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const notificacao = await this.prisma.notificacao.findUnique({
-      where: { id },
+  async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const notificacao = await this.prisma.notificacao.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       select: { id: true },
     });
 
     if (!notificacao) {
-      return { status: 422, message: 'Notificacao nao encontrada.' };
+      throw new NotFoundException('Notificacao nao encontrada.');
     }
 
     await this.prisma.notificacao.delete({ where: { id } });
@@ -275,6 +331,18 @@ export class NotificacaoService {
     return {
       status: 200,
       message: 'Notificacao removida com sucesso.',
+    };
+  }
+
+  /** Empresa do usuario e, se ele tiver filial, a filial dele. */
+  private filtroEscopo(escopo: EscopoUsuario): Prisma.NotificacaoWhereInput {
+    if (escopo.superadmin) {
+      return {};
+    }
+
+    return {
+      empresaId: escopo.empresaId,
+      ...(escopo.filialId && { filialId: escopo.filialId }),
     };
   }
 
@@ -286,6 +354,7 @@ export class NotificacaoService {
       usuarioDestinoId?: string;
       usuarioRemetenteId?: string;
     },
+    filialRestrita?: string,
   ): Promise<{ valido: boolean; mensagem: string }> {
     const empresa = await this.prisma.empresa.findUnique({
       where: { id: empresaId },
@@ -315,6 +384,7 @@ export class NotificacaoService {
         where: { id: relacionamentos.pessoaId },
         select: {
           id: true,
+          filialId: true,
           filial: {
             select: {
               empresaId: true,
@@ -323,7 +393,11 @@ export class NotificacaoService {
         },
       });
 
-      if (!pessoa || pessoa.filial.empresaId !== empresaId) {
+      if (
+        !pessoa ||
+        pessoa.filial.empresaId !== empresaId ||
+        (filialRestrita && pessoa.filialId !== filialRestrita)
+      ) {
         return {
           valido: false,
           mensagem: 'Pessoa nao encontrada para a empresa informada.',

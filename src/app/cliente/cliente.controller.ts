@@ -21,6 +21,7 @@ import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { CurrentUser } from 'src/decorators/current-user.decorator/current-user.decorator';
 import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 import { ClienteDto, updateClienteDto } from './cliente.dto/cliente.dto';
+import { Status } from '@prisma/client';
 
 @Controller('cliente')
 @UseGuards(AuthGuard, AcessoGuard)
@@ -66,34 +67,22 @@ export class ClienteController {
   async update(
     @Param('id') id: string,
     @Body() dto: updateClienteDto,
-    @CurrentUser() user?: any,
+    @Escopo() escopo: EscopoUsuario,
   ) {
-    if (!user) {
-      return { status: 401, message: 'Usuário não autenticado.' };
-    }
-
-    return this.clienteService.update(id, dto);
+    return this.clienteService.update(id, dto, escopo);
   }
 
   @Patch(':id/status')
   async updateStatus(
     @Param('id') id: string,
-    @Body('status') status: string,
-    @CurrentUser() user?: any,
+    @Body('status') status: Status,
+    @Escopo() escopo: EscopoUsuario,
   ) {
-    if (!user) {
-      return { status: 401, message: 'Usuário não autenticado.' };
-    }
-
-    return this.clienteService.updateStatus(id, status as any);
+    return this.clienteService.updateStatus(id, status, escopo);
   }
 
   @Delete(':id')
-  async delete(@Param('id') id: string, @CurrentUser() user?: any) {
-    if (!user) {
-      return { status: 401, message: 'Usuário não autenticado.' };
-    }
-
-    return this.clienteService.deleteById(id);
+  async delete(@Param('id') id: string, @Escopo() escopo: EscopoUsuario) {
+    return this.clienteService.deleteById(id, escopo);
   }
 }

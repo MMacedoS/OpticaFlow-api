@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,93 +9,45 @@ import {
   Post,
   Put,
   Query,
-  Req,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AcessoGuard } from 'src/guards/acesso/acesso.guard';
 import { AuthGuard } from 'src/guards/auth/auth.guard';
 import { CreateConvenioDto, UpdateConvenioDto } from './dto/convenio.dto';
 import { ConvenioService } from './convenio.service';
-import { UsuarioService } from 'src/app/usuario/usuario.service';
+import { Escopo } from 'src/common/escopo/escopo.decorator';
+import type { EscopoUsuario } from 'src/common/escopo/escopo.interface';
+import { EnrichUserInterceptor } from 'src/interceptors/enrich-user/enrich-user.interceptor.ts';
 
 @Controller('convenio')
 @UseGuards(AuthGuard, AcessoGuard)
+@UseInterceptors(EnrichUserInterceptor)
 export class ConvenioController {
-  constructor(
-    private readonly convenioService: ConvenioService,
-    private readonly usuarioService: UsuarioService,
-  ) {}
+  constructor(private readonly convenioService: ConvenioService) {}
 
   @Post()
   async createConvenio(
     @Body() dto: CreateConvenioDto,
-    @Req()
-    request?: {
-      user?: {
-        sub: string;
-      };
-    },
+    @Escopo() escopo: EscopoUsuario,
   ) {
-    if (!dto.empresaId) {
-      const usuarioId = request?.user?.sub;
-
-      if (!usuarioId) {
-        return { status: 401, message: 'Usuário não autenticado.' };
-      }
-
-      const usuario = await this.usuarioService.findById(usuarioId);
-
-      if (!usuario) {
-        return { status: 401, message: 'Usuário não encontrado.' };
-      }
-
-      if (!usuario.empresaId) {
-        return {
-          status: 401,
-          message: 'Usuário não está associado a uma empresa.',
-        };
-      }
-
-      dto.empresaId = usuario.empresaId;
-    }
-    return this.convenioService.create(dto);
+    return this.convenioService.create(dto, escopo);
   }
 
   @Get()
   async getAllByEmpresa(
-    @Param('empresaId') empresaId: string,
+    @Escopo() escopo: EscopoUsuario,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
     @Query('ativo') ativo?: string,
-    @Req()
-    request?: {
-      user?: {
-        sub: string;
-      };
-    },
+    @Query('empresaId') empresaIdInformada?: string,
   ) {
+    // Usuario comum lista a propria empresa; superadmin informa a empresa.
+    const empresaId = escopo.superadmin ? empresaIdInformada : escopo.empresaId;
+
     if (!empresaId) {
-      const usuarioId = request?.user?.sub;
-
-      if (!usuarioId) {
-        return { status: 401, message: 'Usuário não autenticado.' };
-      }
-
-      const usuario = await this.usuarioService.findById(usuarioId);
-
-      if (!usuario) {
-        return { status: 401, message: 'Usuário não encontrado.' };
-      }
-
-      if (!usuario.empresaId) {
-        return {
-          status: 401,
-          message: 'Usuário não está associado a uma empresa.',
-        };
-      }
-
-      empresaId = usuario.empresaId;
+      throw new BadRequestException('Informe a empresa dos convênios.');
     }
 
     return this.convenioService.findAllByEmpresa(
@@ -107,31 +60,42 @@ export class ConvenioController {
   }
 
   @Get('all')
-  async getAll() {
-    return this.convenioService.findAll();
+  async getAll(@Escopo() escopo: EscopoUsuario) {
+    return this.convenioService.findAll(escopo);
   }
 
   @Patch(':id/status')
-  async updateStatus(@Param('id') id: string, @Body('status') status: string) {
-    return await this.convenioService.updateStatus(id, status);
+  async updateStatus(
+    @Param('id') id: string,
+    @Body('status') status: string,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return await this.convenioService.updateStatus(id, status, escopo);
   }
 
   @Get(':id')
-  async getConvenioById(@Param('id') id: string) {
-    return this.convenioService.findById(id);
+  async getConvenioById(
+    @Param('id') id: string,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.convenioService.findById(id, escopo);
   }
 
   @Put(':id')
   async updateConvenio(
     @Param('id') id: string,
     @Body() dto: UpdateConvenioDto,
+    @Escopo() escopo: EscopoUsuario,
   ) {
-    return this.convenioService.update(id, dto);
+    return this.convenioService.update(id, dto, escopo);
   }
 
   @Delete(':id')
-  async deleteConvenio(@Param('id') id: string) {
-    return this.convenioService.deleteById(id);
+  async deleteConvenio(
+    @Param('id') id: string,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.convenioService.deleteById(id, escopo);
   }
 
   private parseBooleanQuery(value?: string): boolean | undefined {

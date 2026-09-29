@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateArquivoDto, UpdateArquivoDto } from './dto/arquivo.dto';
@@ -9,14 +10,37 @@ import { ArquivoResumo } from './interfaces/arquivo.interface';
 export class ArquivoService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateArquivoDto): Promise<ResponseJson> {
-    const validacao = await this.validarRelacionamentos(dto.empresaId, {
-      filialId: dto.filialId,
-      pessoaId: dto.pessoaId,
-      atendimentoId: dto.atendimentoId,
-      prontuarioId: dto.prontuarioId,
-      enviadoPorId: dto.enviadoPorId,
-    });
+  async create(
+    dto: CreateArquivoDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    // Usuario comum sempre grava na propria empresa (e filial, se tiver).
+    const empresaId = escopo.superadmin ? dto.empresaId : escopo.empresaId;
+
+    if (!empresaId) {
+      return { status: 422, message: 'Informe a empresa do arquivo.' };
+    }
+
+    if (escopo.filialId && dto.filialId && dto.filialId !== escopo.filialId) {
+      return {
+        status: 422,
+        message: 'Filial nao encontrada para a empresa informada.',
+      };
+    }
+
+    const filialId = escopo.filialId ?? dto.filialId;
+
+    const validacao = await this.validarRelacionamentos(
+      empresaId,
+      {
+        filialId,
+        pessoaId: dto.pessoaId,
+        atendimentoId: dto.atendimentoId,
+        prontuarioId: dto.prontuarioId,
+        enviadoPorId: dto.enviadoPorId,
+      },
+      escopo.filialId,
+    );
 
     if (!validacao.valido) {
       return { status: 422, message: validacao.mensagem };
@@ -24,8 +48,8 @@ export class ArquivoService {
 
     const arquivo = await this.prisma.arquivo.create({
       data: {
-        empresaId: dto.empresaId,
-        filialId: dto.filialId,
+        empresaId,
+        filialId,
         pessoaId: dto.pessoaId,
         atendimentoId: dto.atendimentoId,
         prontuarioId: dto.prontuarioId,
@@ -46,6 +70,7 @@ export class ArquivoService {
 
   async findAllByEmpresa(
     empresaId: string,
+    escopo: EscopoUsuario,
     page: number = 1,
     limit: number = 10,
     search: string = '',
@@ -56,6 +81,10 @@ export class ArquivoService {
     enviadoPorId?: string,
     mimeType?: string,
   ): Promise<ResponseJson> {
+    if (!escopo.superadmin && empresaId !== escopo.empresaId) {
+      throw new NotFoundException('Empresa nao encontrada.');
+    }
+
     const empresa = await this.prisma.empresa.findUnique({
       where: { id: empresaId },
       select: { id: true },
@@ -65,13 +94,19 @@ export class ArquivoService {
       return { status: 422, message: 'Empresa nao encontrada.' };
     }
 
+    if (escopo.filialId && filialId && filialId !== escopo.filialId) {
+      throw new NotFoundException('Filial nao encontrada.');
+    }
+
     const pageNumber = Math.max(1, page);
     const limitNumber = Math.max(1, limit);
     const skip = (pageNumber - 1) * limitNumber;
 
+    const filialFiltro = escopo.filialId ?? filialId;
+
     const where: Prisma.ArquivoWhereInput = {
       empresaId,
-      ...(filialId && { filialId }),
+      ...(filialFiltro && { filialId: filialFiltro }),
       ...(pessoaId && { pessoaId }),
       ...(atendimentoId && { atendimentoId }),
       ...(prontuarioId && { prontuarioId }),
@@ -129,9 +164,9 @@ export class ArquivoService {
     };
   }
 
-  async findById(id: string): Promise<ResponseJson> {
-    const arquivo = await this.prisma.arquivo.findUnique({
-      where: { id },
+  async findById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const arquivo = await this.prisma.arquivo.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       include: {
         filial: { select: { id: true, nome: true } },
         pessoa: { select: { id: true, nome: true } },
@@ -142,7 +177,7 @@ export class ArquivoService {
     });
 
     if (!arquivo) {
-      return { status: 422, message: 'Arquivo nao encontrado.' };
+      throw new NotFoundException('Arquivo nao encontrado.');
     }
 
     return {
@@ -159,9 +194,20 @@ export class ArquivoService {
     };
   }
 
-  async update(id: string, dto: UpdateArquivoDto): Promise<ResponseJson> {
-    const arquivo = await this.prisma.arquivo.findUnique({
-      where: { id },
+  async update(
+    id: string,
+    dto: UpdateArquivoDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    if (escopo.filialId && dto.filialId && dto.filialId !== escopo.filialId) {
+      return {
+        status: 422,
+        message: 'Filial nao encontrada para a empresa informada.',
+      };
+    }
+
+    const arquivo = await this.prisma.arquivo.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       select: {
         id: true,
         empresaId: true,
@@ -174,16 +220,20 @@ export class ArquivoService {
     });
 
     if (!arquivo) {
-      return { status: 422, message: 'Arquivo nao encontrado.' };
+      throw new NotFoundException('Arquivo nao encontrado.');
     }
 
-    const validacao = await this.validarRelacionamentos(arquivo.empresaId, {
-      filialId: dto.filialId ?? arquivo.filialId ?? undefined,
-      pessoaId: dto.pessoaId ?? arquivo.pessoaId ?? undefined,
-      atendimentoId: dto.atendimentoId ?? arquivo.atendimentoId ?? undefined,
-      prontuarioId: dto.prontuarioId ?? arquivo.prontuarioId ?? undefined,
-      enviadoPorId: dto.enviadoPorId ?? arquivo.enviadoPorId ?? undefined,
-    });
+    const validacao = await this.validarRelacionamentos(
+      arquivo.empresaId,
+      {
+        filialId: dto.filialId ?? arquivo.filialId ?? undefined,
+        pessoaId: dto.pessoaId ?? arquivo.pessoaId ?? undefined,
+        atendimentoId: dto.atendimentoId ?? arquivo.atendimentoId ?? undefined,
+        prontuarioId: dto.prontuarioId ?? arquivo.prontuarioId ?? undefined,
+        enviadoPorId: dto.enviadoPorId ?? arquivo.enviadoPorId ?? undefined,
+      },
+      escopo.filialId,
+    );
 
     if (!validacao.valido) {
       return { status: 422, message: validacao.mensagem };
@@ -211,14 +261,14 @@ export class ArquivoService {
     };
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const arquivo = await this.prisma.arquivo.findUnique({
-      where: { id },
+  async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const arquivo = await this.prisma.arquivo.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       select: { id: true },
     });
 
     if (!arquivo) {
-      return { status: 422, message: 'Arquivo nao encontrado.' };
+      throw new NotFoundException('Arquivo nao encontrado.');
     }
 
     await this.prisma.arquivo.delete({ where: { id } });
@@ -226,6 +276,18 @@ export class ArquivoService {
     return {
       status: 200,
       message: 'Arquivo removido com sucesso.',
+    };
+  }
+
+  /** Empresa do usuario e, se ele tiver filial, a filial dele. */
+  private filtroEscopo(escopo: EscopoUsuario): Prisma.ArquivoWhereInput {
+    if (escopo.superadmin) {
+      return {};
+    }
+
+    return {
+      empresaId: escopo.empresaId,
+      ...(escopo.filialId && { filialId: escopo.filialId }),
     };
   }
 
@@ -238,6 +300,7 @@ export class ArquivoService {
       prontuarioId?: string;
       enviadoPorId?: string;
     },
+    filialRestrita?: string,
   ): Promise<{ valido: boolean; mensagem: string }> {
     const empresa = await this.prisma.empresa.findUnique({
       where: { id: empresaId },
@@ -267,6 +330,7 @@ export class ArquivoService {
         where: { id: relacionamentos.pessoaId },
         select: {
           id: true,
+          filialId: true,
           filial: {
             select: {
               empresaId: true,
@@ -275,7 +339,11 @@ export class ArquivoService {
         },
       });
 
-      if (!pessoa || pessoa.filial.empresaId !== empresaId) {
+      if (
+        !pessoa ||
+        pessoa.filial.empresaId !== empresaId ||
+        (filialRestrita && pessoa.filialId !== filialRestrita)
+      ) {
         return {
           valido: false,
           mensagem: 'Pessoa nao encontrada para a empresa informada.',

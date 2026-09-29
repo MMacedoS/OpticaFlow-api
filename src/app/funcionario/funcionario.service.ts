@@ -4,13 +4,15 @@ import {
   impedirAlterarProprioAcesso,
 } from 'src/common/acesso/atribuir-acessos';
 import { ControleAcesso } from './../../constants/acessos';
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { FuncionarioDto, UpdateFuncionarioDto } from './dto/funcionario.dto';
 import { getSenhaBase } from 'src/utils/validator';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
+import { filtroPessoaNoEscopo } from 'src/app/pessoa/escopo-pessoa';
 
 @Injectable()
 export class FuncionarioService {
@@ -306,9 +308,9 @@ export class FuncionarioService {
     };
   }
 
-  async findById(id: string): Promise<any> {
-    const funcionario = await this.prisma.funcionario.findUnique({
-      where: { id },
+  async findById(id: string, escopo: EscopoUsuario): Promise<any> {
+    const funcionario = await this.prisma.funcionario.findFirst({
+      where: { id, pessoa: filtroPessoaNoEscopo(escopo) },
       select: {
         id: true,
         pessoaId: true,
@@ -336,7 +338,7 @@ export class FuncionarioService {
     });
 
     if (!funcionario) {
-      return { status: 422, message: 'Funcionário não encontrado.' };
+      throw new NotFoundException('Funcionário não encontrado.');
     }
 
     return {
@@ -355,10 +357,11 @@ export class FuncionarioService {
   async update(
     id: string,
     dto: UpdateFuncionarioDto,
-    usuarioLogadoId?: string,
+    escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
-    const funcionario = await this.prisma.funcionario.findUnique({
-      where: { id },
+    const usuarioLogadoId = escopo.usuarioId;
+    const funcionario = await this.prisma.funcionario.findFirst({
+      where: { id, pessoa: filtroPessoaNoEscopo(escopo) },
       include: {
         pessoa: {
           include: {
@@ -369,7 +372,7 @@ export class FuncionarioService {
     });
 
     if (!funcionario) {
-      return { status: 422, message: 'Funcionário não encontrado.' };
+      throw new NotFoundException('Funcionário não encontrado.');
     }
 
     const usuario = funcionario.pessoa.usuario;
@@ -475,12 +478,16 @@ export class FuncionarioService {
       }
     });
 
-    return this.findById(id);
+    return this.findById(id, escopo);
   }
 
-  async updateStatus(id: string, status: string): Promise<ResponseJson> {
-    const funcionario = await this.prisma.funcionario.findUnique({
-      where: { id },
+  async updateStatus(
+    id: string,
+    status: string,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const funcionario = await this.prisma.funcionario.findFirst({
+      where: { id, pessoa: filtroPessoaNoEscopo(escopo) },
       include: {
         pessoa: {
           include: {
@@ -491,7 +498,7 @@ export class FuncionarioService {
     });
 
     if (!funcionario) {
-      return { status: 422, message: 'Funcionário não encontrado.' };
+      throw new NotFoundException('Funcionário não encontrado.');
     }
 
     const usuario = funcionario.pessoa.usuario;
@@ -519,12 +526,12 @@ export class FuncionarioService {
       });
     });
 
-    return this.findById(id);
+    return this.findById(id, escopo);
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const funcionario = await this.prisma.funcionario.findUnique({
-      where: { id },
+  async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const funcionario = await this.prisma.funcionario.findFirst({
+      where: { id, pessoa: filtroPessoaNoEscopo(escopo) },
       include: {
         pessoa: {
           include: {
@@ -537,7 +544,7 @@ export class FuncionarioService {
     });
 
     if (!funcionario) {
-      return { status: 422, message: 'Funcionário não encontrado.' };
+      throw new NotFoundException('Funcionário não encontrado.');
     }
 
     await this.prisma.$transaction(async (tx) => {

@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TipoMovimentoEstoque } from '@prisma/client';
 import { MovimentoEstoqueService } from 'src/app/movimento-estoque/movimento-estoque.service';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
@@ -16,19 +17,14 @@ export class OrdemServicoItemService {
     private readonly movimentoEstoque: MovimentoEstoqueService,
   ) {}
 
-  async create(dto: CreateOrdemServicoItemDto): Promise<ResponseJson> {
-    const ordemServico = await this.prisma.ordemServico.findUnique({
-      where: { id: dto.ordemServicoId },
-      select: {
-        id: true,
-        empresaId: true,
-        filialId: true,
-      },
-    });
-
-    if (!ordemServico) {
-      return { status: 422, message: 'Ordem de servico nao encontrada.' };
-    }
+  async create(
+    dto: CreateOrdemServicoItemDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const ordemServico = await this.buscarOrdemServicoNoEscopo(
+      dto.ordemServicoId,
+      escopo,
+    );
 
     if (!dto.produtoId && !dto.descricao_servico) {
       return {
@@ -102,7 +98,7 @@ export class OrdemServicoItemService {
         return novoItem;
       });
 
-      return this.findById(item.id);
+      return this.findById(item.id, escopo);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -120,17 +116,11 @@ export class OrdemServicoItemService {
 
   async findAllByOrdemServico(
     ordemServicoId: string,
+    escopo: EscopoUsuario,
     page: number = 1,
     limit: number = 10,
   ): Promise<ResponseJson> {
-    const ordemServico = await this.prisma.ordemServico.findUnique({
-      where: { id: ordemServicoId },
-      select: { id: true },
-    });
-
-    if (!ordemServico) {
-      return { status: 422, message: 'Ordem de servico nao encontrada.' };
-    }
+    await this.buscarOrdemServicoNoEscopo(ordemServicoId, escopo);
 
     const pageNumber = Math.max(1, page);
     const limitNumber = Math.max(1, limit);
@@ -177,9 +167,9 @@ export class OrdemServicoItemService {
     };
   }
 
-  async findById(id: string): Promise<ResponseJson> {
-    const item = await this.prisma.ordemServicoItem.findUnique({
-      where: { id },
+  async findById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const item = await this.prisma.ordemServicoItem.findFirst({
+      where: { id, ordem_servico: this.filtroOrdemServico(escopo) },
       include: {
         ordem_servico: {
           select: {
@@ -203,10 +193,7 @@ export class OrdemServicoItemService {
     });
 
     if (!item) {
-      return {
-        status: 422,
-        message: 'Item de ordem de servico nao encontrado.',
-      };
+      throw new NotFoundException('Item de ordem de servico nao encontrado.');
     }
 
     return {
@@ -223,9 +210,10 @@ export class OrdemServicoItemService {
   async update(
     id: string,
     dto: UpdateOrdemServicoItemDto,
+    escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
-    const item = await this.prisma.ordemServicoItem.findUnique({
-      where: { id },
+    const item = await this.prisma.ordemServicoItem.findFirst({
+      where: { id, ordem_servico: this.filtroOrdemServico(escopo) },
       select: {
         id: true,
         ordemServicoId: true,
@@ -243,10 +231,7 @@ export class OrdemServicoItemService {
     });
 
     if (!item) {
-      return {
-        status: 422,
-        message: 'Item de ordem de servico nao encontrado.',
-      };
+      throw new NotFoundException('Item de ordem de servico nao encontrado.');
     }
 
     const quantidadeDestino = dto.quantidade ?? item.quantidade;
@@ -289,12 +274,12 @@ export class OrdemServicoItemService {
       await this.recalcularValorTotalOrdemServico(tx, item.ordemServicoId);
     });
 
-    return this.findById(id);
+    return this.findById(id, escopo);
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const item = await this.prisma.ordemServicoItem.findUnique({
-      where: { id },
+  async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const item = await this.prisma.ordemServicoItem.findFirst({
+      where: { id, ordem_servico: this.filtroOrdemServico(escopo) },
       select: {
         id: true,
         ordemServicoId: true,
@@ -310,10 +295,7 @@ export class OrdemServicoItemService {
     });
 
     if (!item) {
-      return {
-        status: 422,
-        message: 'Item de ordem de servico nao encontrado.',
-      };
+      throw new NotFoundException('Item de ordem de servico nao encontrado.');
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -337,6 +319,39 @@ export class OrdemServicoItemService {
       status: 200,
       message: 'Item de ordem de servico deletado com sucesso.',
     };
+  }
+
+  /**
+   * A OS do item precisa ser da empresa do usuario (e da filial dele, quando
+   * ele tem filial). Superadmin nao tem restricao.
+   */
+  private filtroOrdemServico(
+    escopo: EscopoUsuario,
+  ): Prisma.OrdemServicoWhereInput {
+    if (escopo.superadmin) {
+      return {};
+    }
+
+    return {
+      empresaId: escopo.empresaId,
+      ...(escopo.filialId && { filialId: escopo.filialId }),
+    };
+  }
+
+  private async buscarOrdemServicoNoEscopo(
+    ordemServicoId: string,
+    escopo: EscopoUsuario,
+  ): Promise<{ id: string; empresaId: string; filialId: string }> {
+    const ordemServico = await this.prisma.ordemServico.findFirst({
+      where: { id: ordemServicoId, ...this.filtroOrdemServico(escopo) },
+      select: { id: true, empresaId: true, filialId: true },
+    });
+
+    if (!ordemServico) {
+      throw new NotFoundException('Ordem de servico nao encontrada.');
+    }
+
+    return ordemServico;
   }
 
   private mapResumo(item: OrdemServicoItemResumo): OrdemServicoItemResumo {

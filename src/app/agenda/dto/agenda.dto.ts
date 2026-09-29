@@ -113,9 +113,10 @@ export class CreateAgendaDto {
 }
 
 export class UpdateAgendaDto {
+  /** Ignorado: a agenda alterada e sempre a do id da URL. */
+  @IsOptional()
   @IsString({ message: 'O id da agenda deve ser um texto válido.' })
-  @IsNotEmpty({ message: 'O id da agenda é obrigatório.' })
-  id!: string;
+  id?: string;
 
   @IsString({ message: 'O filialId deve ser um texto válido.' })
   @IsNotEmpty({ message: 'O filialId é obrigatório.' })

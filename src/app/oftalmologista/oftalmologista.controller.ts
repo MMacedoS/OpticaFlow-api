@@ -69,26 +69,58 @@ export class OftalmologistaController {
     return oftalmologistas;
   }
 
+  /** Lista completa (sem paginacao) para selects do frontend. */
+  @Get('list')
+  async getAllByFilialList(
+    @Escopo() escopo: EscopoUsuario,
+    @Query('search') search?: string,
+    @Query('filialId') filialId?: string,
+  ) {
+    const filtroPessoa = await resolverFiltroFilial(
+      this.prisma,
+      escopo,
+      filialId,
+    );
+
+    return this.oftalmologistaService.findAllByFilial(
+      filtroPessoa,
+      1,
+      1000,
+      search ?? '',
+    );
+  }
+
   @Get(':id')
-  async getOftalmologistaById(@Param('id') id: string) {
-    return this.oftalmologistaService.findById(id);
+  async getOftalmologistaById(
+    @Param('id') id: string,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.oftalmologistaService.findById(id, escopo);
   }
 
   @Put(':id')
-  async updateOftalmologista(@Param('id') id: string, @Body() dto: UpdateDto) {
-    return this.oftalmologistaService.update(id, dto);
+  async updateOftalmologista(
+    @Param('id') id: string,
+    @Body() dto: UpdateDto,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.oftalmologistaService.update(id, dto, escopo);
   }
 
   @Patch(':id/status')
   async updateOftalmologistaStatus(
     @Param('id') id: string,
     @Body('status') status: Status,
+    @Escopo() escopo: EscopoUsuario,
   ) {
-    return this.oftalmologistaService.updateStatus(id, status);
+    return this.oftalmologistaService.updateStatus(id, status, escopo);
   }
 
   @Delete(':id')
-  async deleteOftalmologista(@Param('id') id: string) {
-    return this.oftalmologistaService.deleteById(id);
+  async deleteOftalmologista(
+    @Param('id') id: string,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.oftalmologistaService.deleteById(id, escopo);
   }
 }

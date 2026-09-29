@@ -1,7 +1,12 @@
 import { atribuirAcessosPorModulo } from 'src/common/acesso/atribuir-acessos';
-import { Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { CreateEmpresaDto } from './dto/createEmpresa.dto';
@@ -12,7 +17,12 @@ import { getSenhaBase } from 'src/utils/validator';
 export class EmpresaService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateEmpresaDto): Promise<ResponseJson> {
+  async create(
+    dto: CreateEmpresaDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    this.exigirSuperadmin(escopo, 'Somente o superadmin pode criar empresas.');
+
     const empresaExistente = await this.prisma.empresa.findFirst({
       where: {
         OR: [{ cnpj: dto.cnpj }, { email: dto.email }],
@@ -119,6 +129,7 @@ export class EmpresaService {
   }
 
   async findAll(
+    escopo: EscopoUsuario,
     page: number = 1,
     limit: number = 10,
     search: string = '',
@@ -129,8 +140,10 @@ export class EmpresaService {
 
     const skip = (pageNumber - 1) * limitNumber;
 
+    // Usuario comum so enxerga a propria empresa; superadmin ve todas.
     const searchFilter: any = {
       status: status ? { equals: status } : undefined,
+      ...(!escopo.superadmin && { id: escopo.empresaId ?? '' }),
     };
 
     if (search) {
@@ -179,15 +192,19 @@ export class EmpresaService {
     };
   }
 
-  async updateStatus(id: string, status: string): Promise<ResponseJson> {
-    const empresa = await this.prisma.empresa.findUnique({ where: { id } });
-
-    if (!empresa) {
-      return { status: 422, message: 'Empresa não encontrada.' };
-    }
+  async updateStatus(
+    id: string,
+    status: string,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    this.exigirSuperadmin(
+      escopo,
+      'Somente o superadmin pode alterar o status de empresas.',
+    );
+    await this.buscarNoEscopo(id, escopo);
 
     const updatedEmpresa = await this.prisma.$transaction(async (tx) => {
-      const updatingEmpresa = await this.prisma.empresa.update({
+      const updatingEmpresa = await tx.empresa.update({
         where: { id },
         data: { status: status as Prisma.EnumStatusFieldUpdateOperationsInput },
       });
@@ -207,12 +224,12 @@ export class EmpresaService {
     };
   }
 
-  async update(id: string, dto: UpdateEmpresaDto): Promise<ResponseJson> {
-    const empresa = await this.prisma.empresa.findUnique({ where: { id } });
-
-    if (!empresa) {
-      return { status: 422, message: 'Empresa não encontrada.' };
-    }
+  async update(
+    id: string,
+    dto: UpdateEmpresaDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    await this.buscarNoEscopo(id, escopo);
 
     const updatedEmpresa = await this.prisma.empresa.update({
       where: { id },
@@ -224,7 +241,8 @@ export class EmpresaService {
         registro_municipal: dto.registro_municipal,
         email: dto.email,
         website: dto.website,
-        status: dto.status,
+        // Ativar/inativar empresa e exclusivo do superadmin (PATCH /status).
+        status: escopo.superadmin ? dto.status : undefined,
         enderecos: {
           deleteMany: {},
           create: dto.enderecos?.map((endereco) => ({
@@ -260,12 +278,12 @@ export class EmpresaService {
     };
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const empresa = await this.prisma.empresa.findUnique({ where: { id } });
-
-    if (!empresa) {
-      return { status: 422, message: 'Empresa não encontrada.' };
-    }
+  async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    this.exigirSuperadmin(
+      escopo,
+      'Somente o superadmin pode excluir empresas.',
+    );
+    await this.buscarNoEscopo(id, escopo);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.usuario.deleteMany({ where: { empresaId: id } });
@@ -273,5 +291,32 @@ export class EmpresaService {
     });
 
     return { status: 200, message: 'Empresa deletada com sucesso.' };
+  }
+
+  /**
+   * Superadmin acessa qualquer empresa; os demais apenas a propria. Empresas
+   * de outros tenants aparecem como inexistentes.
+   */
+  private async buscarNoEscopo(id: string, escopo: EscopoUsuario) {
+    if (!escopo.superadmin && id !== escopo.empresaId) {
+      throw new NotFoundException('Empresa não encontrada.');
+    }
+
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!empresa) {
+      throw new NotFoundException('Empresa não encontrada.');
+    }
+
+    return empresa;
+  }
+
+  private exigirSuperadmin(escopo: EscopoUsuario, mensagem: string): void {
+    if (!escopo.superadmin) {
+      throw new ForbiddenException(mensagem);
+    }
   }
 }

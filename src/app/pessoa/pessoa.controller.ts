@@ -58,14 +58,18 @@ export class PessoaController {
 
   @Get('list')
   async getAllByFilialList(
+    @Escopo() escopo: EscopoUsuario,
     @Query('search') search?: string,
-    @CurrentUser() user?: any,
+    @Query('filialId') filialId?: string,
   ) {
-    if (!user || !user.pessoa || !user.pessoa.filialId) {
-      return { status: 401, message: 'Usuário não autenticado ou sem filial.' };
-    }
+    const filtroPessoa = await resolverFiltroFilial(
+      this.prisma,
+      escopo,
+      filialId,
+    );
+
     const pessoas = await this.pessoaService.findAllByFilial(
-      user.pessoa.filialId,
+      filtroPessoa,
       1,
       1000,
       search ?? '',
@@ -84,17 +88,25 @@ export class PessoaController {
   }
 
   @Put(':id')
-  async update(@Param('id') id: string, @Body() dto: PessoaDto) {
-    return this.pessoaService.update(id, dto);
+  async update(
+    @Param('id') id: string,
+    @Body() dto: PessoaDto,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.pessoaService.update(id, dto, escopo);
   }
 
   @Patch(':id/status')
-  async updateStatus(@Param('id') id: string, @Body() status: Status) {
-    return this.pessoaService.updateStatus(id, status);
+  async updateStatus(
+    @Param('id') id: string,
+    @Body('status') status: Status,
+    @Escopo() escopo: EscopoUsuario,
+  ) {
+    return this.pessoaService.updateStatus(id, status, escopo);
   }
 
   @Delete(':id')
-  async delete(@Param('id') id: string) {
-    return this.pessoaService.delete(id);
+  async delete(@Param('id') id: string, @Escopo() escopo: EscopoUsuario) {
+    return this.pessoaService.delete(id, escopo);
   }
 }

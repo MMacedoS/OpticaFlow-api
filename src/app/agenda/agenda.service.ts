@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, StatusAgenda, StatusAtendimento } from '@prisma/client';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateAgendaDto, UpdateAgendaDto } from './dto/agenda.dto';
@@ -10,13 +11,21 @@ import { fimDoPeriodo, inicioDoPeriodo } from 'src/common/datas/periodo';
 export class AgendaService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateAgendaDto): Promise<ResponseJson> {
+  async create(
+    dto: CreateAgendaDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
     const filial = await this.prisma.filial.findUnique({
       where: { id: dto.filialId },
       select: { id: true, empresaId: true },
     });
 
-    if (!filial || !filial.empresaId) {
+    if (
+      !filial ||
+      !filial.empresaId ||
+      (!escopo.superadmin && filial.empresaId !== escopo.empresaId) ||
+      (escopo.filialId && filial.id !== escopo.filialId)
+    ) {
       return {
         status: 422,
         message: 'Filial não encontrada para a empresa informada.',
@@ -36,6 +45,16 @@ export class AgendaService {
           message: validacaoProfissional.mensagem,
         };
       }
+    }
+
+    const erroRelacionamento = await this.validarRelacionamentos(
+      dto,
+      filial.empresaId,
+      filial.id,
+    );
+
+    if (erroRelacionamento) {
+      return { status: 422, message: erroRelacionamento };
     }
 
     try {
@@ -61,7 +80,7 @@ export class AgendaService {
               agendaId: agenda.id,
               pacienteId: dto.pessoaId,
               profissionalId: dto.profissionalId,
-              convenioId: dto.convenioId,
+              convenioId: dto.convenioId || null,
               clienteId: dto.clienteId || null,
               dataAtendimento: new Date(dto.dataHora),
               status: StatusAtendimento.em_espera,
@@ -340,9 +359,9 @@ export class AgendaService {
     };
   }
 
-  async findById(id: string): Promise<ResponseJson> {
-    const agenda = await this.prisma.agenda.findUnique({
-      where: { id },
+  async findById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const agenda = await this.prisma.agenda.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       include: {
         pessoa: {
           select: {
@@ -375,7 +394,7 @@ export class AgendaService {
     });
 
     if (!agenda) {
-      return { status: 422, message: 'Agenda não encontrada.' };
+      throw new NotFoundException('Agenda não encontrada.');
     }
 
     return {
@@ -416,20 +435,47 @@ export class AgendaService {
     };
   }
 
-  async update(dto: UpdateAgendaDto): Promise<ResponseJson> {
-    const agendaAtual = await this.prisma.agenda.findUnique({
-      where: { id: dto.id },
+  async update(
+    id: string,
+    dto: UpdateAgendaDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    // O id vem sempre da URL; o id do corpo e ignorado.
+    const agendaAtual = await this.prisma.agenda.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       select: { filialId: true, empresaId: true },
     });
 
     if (!agendaAtual) {
-      return { status: 422, message: 'Agenda não encontrada.' };
+      throw new NotFoundException('Agenda não encontrada.');
+    }
+
+    if (dto.profissionalId) {
+      const validacaoProfissional = await this.validarProfissional(
+        dto.profissionalId,
+        agendaAtual.empresaId,
+        agendaAtual.filialId,
+      );
+
+      if (!validacaoProfissional.valido) {
+        return { status: 422, message: validacaoProfissional.mensagem };
+      }
+    }
+
+    const erroRelacionamento = await this.validarRelacionamentos(
+      dto,
+      agendaAtual.empresaId,
+      agendaAtual.filialId,
+    );
+
+    if (erroRelacionamento) {
+      return { status: 422, message: erroRelacionamento };
     }
 
     try {
       const resultadoTransacao = await this.prisma.$transaction(async (tx) => {
         const agenda = await tx.agenda.update({
-          where: { id: dto.id },
+          where: { id },
           data: {
             pessoaId: dto.pessoaId,
             profissionalId: dto.profissionalId,
@@ -550,14 +596,14 @@ export class AgendaService {
     });
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const agenda = await this.prisma.agenda.findUnique({
-      where: { id },
+  async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const agenda = await this.prisma.agenda.findFirst({
+      where: { id, ...this.filtroEscopo(escopo) },
       select: { id: true },
     });
 
     if (!agenda) {
-      return { status: 422, message: 'Agenda não encontrada.' };
+      throw new NotFoundException('Agenda não encontrada.');
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -592,6 +638,90 @@ export class AgendaService {
     });
 
     return { status: 200, message: 'Agenda deletada com sucesso.' };
+  }
+
+  /**
+   * Empresa do usuario e, se ele tiver filial, a filial dele. Profissional
+   * de saude so ve a propria agenda (como na listagem).
+   */
+  private filtroEscopo(escopo: EscopoUsuario): Prisma.AgendaWhereInput {
+    if (escopo.superadmin) {
+      return {};
+    }
+
+    return {
+      empresaId: escopo.empresaId,
+      ...(escopo.filialId && { filialId: escopo.filialId }),
+      ...(escopo.profissionalId && { profissionalId: escopo.profissionalId }),
+    };
+  }
+
+  /**
+   * Paciente e cliente precisam ser da filial da agenda; convenio e produtos
+   * dos itens da OS, da empresa. Devolve a mensagem de erro ou null.
+   */
+  private async validarRelacionamentos(
+    dto: {
+      pessoaId?: string;
+      clienteId?: string;
+      convenioId?: string;
+      ordemServico?: { itens?: { produtoId?: string }[] };
+    },
+    empresaId: string,
+    filialId: string,
+  ): Promise<string | null> {
+    if (dto.pessoaId) {
+      const pessoa = await this.prisma.pessoa.findFirst({
+        where: { id: dto.pessoaId, filialId },
+        select: { id: true },
+      });
+
+      if (!pessoa) {
+        return 'Paciente não encontrado para a filial informada.';
+      }
+    }
+
+    if (dto.clienteId) {
+      const cliente = await this.prisma.cliente.findFirst({
+        where: { id: dto.clienteId, pessoa: { filialId } },
+        select: { id: true },
+      });
+
+      if (!cliente) {
+        return 'Cliente não encontrado para a filial informada.';
+      }
+    }
+
+    if (dto.convenioId) {
+      const convenio = await this.prisma.convenio.findFirst({
+        where: { id: dto.convenioId, empresaId },
+        select: { id: true },
+      });
+
+      if (!convenio) {
+        return 'Convênio não encontrado para a empresa informada.';
+      }
+    }
+
+    const produtoIds = [
+      ...new Set(
+        (dto.ordemServico?.itens ?? [])
+          .map((item) => item.produtoId)
+          .filter((produtoId): produtoId is string => !!produtoId),
+      ),
+    ];
+
+    if (produtoIds.length > 0) {
+      const encontrados = await this.prisma.produto.count({
+        where: { id: { in: produtoIds }, empresaId },
+      });
+
+      if (encontrados !== produtoIds.length) {
+        return 'Produto não encontrado para a empresa informada.';
+      }
+    }
+
+    return null;
   }
 
   private async validarProfissional(

@@ -1,9 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ClienteDto, updateClienteDto } from './cliente.dto/cliente.dto';
 import { ResponseJson } from 'src/interface/response/response.interface';
-import { Prisma, Status, Usuario } from '@prisma/client';
+import { Cliente, Prisma, Status, Usuario } from '@prisma/client';
 import { FilialService } from 'src/app/filial/filial.service';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
+import { filtroPessoaNoEscopo } from 'src/app/pessoa/escopo-pessoa';
 
 @Injectable()
 export class ClienteService {
@@ -21,8 +27,15 @@ export class ClienteService {
       usuario.pessoaId,
     );
 
-    if (!pessoaUser || !pessoaUser.filialId) {
+    if (!pessoaUser || !pessoaUser.filialId || !pessoaUser.filial) {
       return { status: 400, message: 'Usuário não possui filial associada.' };
+    }
+
+    if (dto.convenioId) {
+      await this.garantirConvenioDaEmpresa(
+        dto.convenioId,
+        pessoaUser.filial.empresaId,
+      );
     }
 
     try {
@@ -95,10 +108,10 @@ export class ClienteService {
     }
   }
 
-  async findById(id: string): Promise<ResponseJson> {
+  async findById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
     try {
-      const cliente = await this.prisma.cliente.findUnique({
-        where: { id },
+      const cliente = await this.prisma.cliente.findFirst({
+        where: { id, pessoa: filtroPessoaNoEscopo(escopo) },
         include: { pessoa: true },
       });
 
@@ -176,14 +189,12 @@ export class ClienteService {
     };
   }
 
-  async updateStatus(id: string, status: Status): Promise<ResponseJson> {
-    const cliente = await this.prisma.cliente.findUnique({
-      where: { id },
-    });
-
-    if (!cliente) {
-      return { status: 404, message: 'cliente não encontrado.' };
-    }
+  async updateStatus(
+    id: string,
+    status: Status,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const cliente = await this.buscarNoEscopo(id, escopo);
 
     const updatedCliente = await this.prisma.$transaction(async (tx) => {
       const clienteUpd = await tx.cliente.update({
@@ -206,13 +217,18 @@ export class ClienteService {
     };
   }
 
-  async update(id: string, dto: updateClienteDto): Promise<ResponseJson> {
-    const cliente = await this.prisma.cliente.findUnique({
-      where: { id },
-    });
+  async update(
+    id: string,
+    dto: updateClienteDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    const cliente = await this.buscarNoEscopo(id, escopo);
 
-    if (!cliente) {
-      return { status: 404, message: 'Cliente não encontrado.' };
+    if (dto.convenioId && dto.convenioId !== cliente.convenioId) {
+      await this.garantirConvenioDaEmpresa(
+        dto.convenioId,
+        cliente.pessoa.filial.empresaId,
+      );
     }
 
     const updatedCliente = await this.prisma.$transaction(async (tx) => {
@@ -266,14 +282,8 @@ export class ClienteService {
     };
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const cliente = await this.prisma.cliente.findUnique({
-      where: { id },
-    });
-
-    if (!cliente) {
-      return { status: 404, message: 'Cliente não encontrado.' };
-    }
+  async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    const cliente = await this.buscarNoEscopo(id, escopo);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.contato.deleteMany({ where: { pessoaId: cliente.pessoaId } });
@@ -286,5 +296,39 @@ export class ClienteService {
       status: 200,
       message: 'Cliente deletado com sucesso.',
     };
+  }
+
+  /** Cliente pelo id, restrito a empresa/filial do usuario. */
+  private async buscarNoEscopo(
+    id: string,
+    escopo: EscopoUsuario,
+  ): Promise<Cliente & { pessoa: { filial: { empresaId: string } } }> {
+    const cliente = await this.prisma.cliente.findFirst({
+      where: { id, pessoa: filtroPessoaNoEscopo(escopo) },
+      include: {
+        pessoa: { select: { filial: { select: { empresaId: true } } } },
+      },
+    });
+
+    if (!cliente) {
+      throw new NotFoundException('Cliente não encontrado.');
+    }
+
+    return cliente;
+  }
+
+  /** O convênio do cliente precisa ser da mesma empresa da filial dele. */
+  private async garantirConvenioDaEmpresa(
+    convenioId: string,
+    empresaId: string,
+  ): Promise<void> {
+    const convenio = await this.prisma.convenio.findFirst({
+      where: { id: convenioId, empresaId },
+      select: { id: true },
+    });
+
+    if (!convenio) {
+      throw new UnprocessableEntityException('Convênio não encontrado.');
+    }
   }
 }

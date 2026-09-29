@@ -1,11 +1,13 @@
 import { atribuirAcessosPorModulo } from 'src/common/acesso/atribuir-acessos';
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { Prisma, Status } from '@prisma/client';
+import { Filial, Prisma, Status } from '@prisma/client';
+import { EscopoUsuario } from 'src/common/escopo/escopo.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ResponseJson } from 'src/interface/response/response.interface';
 import { CreateFilialDto } from './dto/filial.dto';
@@ -134,22 +136,16 @@ export class FilialService {
   }
 
   async findAllByEmpresa(
-    userId: string,
+    escopo: EscopoUsuario,
     page: number = 1,
     limit: number = 10,
     search: string = '',
     status: Status = 'ativo',
+    empresaIdInformada?: string,
   ): Promise<ResponseJson> {
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { id: userId },
-    });
-
-    if (!usuario || !usuario.empresaId) {
-      return {
-        status: 401,
-        message: 'Usuário não encontrado ou não possui empresa vinculado.',
-      };
-    }
+    // Usuario comum lista as filiais da propria empresa; superadmin pode
+    // filtrar por empresa ou ver todas.
+    const empresaId = escopo.superadmin ? empresaIdInformada : escopo.empresaId;
 
     const pageNumber = Math.max(1, page);
     const limitNumber = Math.max(1, limit);
@@ -165,7 +161,7 @@ export class FilialService {
       : {};
 
     const whereFilter = {
-      empresaId: usuario.empresaId,
+      ...(empresaId && { empresaId }),
       status: status, // 🔎 FILTRO DE STATUS APLICADO AQUI
       ...searchFilter,
     };
@@ -227,15 +223,21 @@ export class FilialService {
     };
   }
 
-  async findById(id: string) {
-    return await this.prisma.filial.findUnique({
-      where: { id },
+  async findById(id: string, escopo: EscopoUsuario) {
+    const filial = await this.prisma.filial.findFirst({
+      where: { AND: [{ id }, this.filtroFilial(escopo)] },
       include: {
         enderecos: true,
         contatos: true,
         config: true,
       },
     });
+
+    if (!filial) {
+      throw new NotFoundException('Filial não encontrada.');
+    }
+
+    return filial;
   }
 
   async findByPessoaId(pessoaId: string) {
@@ -245,12 +247,37 @@ export class FilialService {
     });
   }
 
-  async update(id: string, dto: UpdateFilialDto): Promise<ResponseJson> {
-    const filialExistente = await this.prisma.filial.findUnique({
-      where: { id },
+  async update(
+    id: string,
+    dto: UpdateFilialDto,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    await this.buscarNoEscopo(id, escopo);
+
+    // Somente o responsavel (gerente) da propria filial pode ser alterado
+    // aqui; nunca uma pessoa arbitraria informada no corpo.
+    const responsavel = await this.prisma.pessoa.findFirst({
+      where: {
+        filialId: id,
+        funcionario: { cargo: 'gerente' },
+        ...(dto.pessoa.id && { id: dto.pessoa.id }),
+      },
+      select: { id: true, usuario: { select: { id: true } } },
     });
-    if (!filialExistente) {
-      throw new NotFoundException('Filial não encontrada.');
+
+    if (!responsavel) {
+      throw new NotFoundException('Responsável da filial não encontrado.');
+    }
+
+    if (responsavel.usuario && dto.pessoa.email) {
+      const usuarioComEmail = await this.prisma.usuario.findUnique({
+        where: { email: dto.pessoa.email },
+        select: { id: true },
+      });
+
+      if (usuarioComEmail && usuarioComEmail.id !== responsavel.usuario.id) {
+        throw new ConflictException('Usuário já existe com este email.');
+      }
     }
 
     const filialAtualizada = await this.prisma.$transaction(async (tx) => {
@@ -273,7 +300,7 @@ export class FilialService {
       });
 
       const pessoa = await tx.pessoa.update({
-        where: { id: dto.pessoa.id },
+        where: { id: responsavel.id },
         data: {
           nome: dto.pessoa.nome,
           cpf: dto.pessoa.cpf,
@@ -311,13 +338,15 @@ export class FilialService {
         });
       }
 
-      await tx.usuario.update({
-        where: { pessoaId: pessoa.id },
-        data: {
-          email: dto.pessoa.email,
-          username: dto.pessoa.nome,
-        },
-      });
+      if (responsavel.usuario) {
+        await tx.usuario.update({
+          where: { id: responsavel.usuario.id },
+          data: {
+            email: dto.pessoa.email,
+            username: dto.pessoa.nome,
+          },
+        });
+      }
 
       return updated;
     });
@@ -346,14 +375,16 @@ export class FilialService {
     };
   }
 
-  async updateStatus(id: string, status: Status): Promise<ResponseJson> {
-    const filial = await this.prisma.filial.findUnique({
-      where: { id },
-    });
-
-    if (!filial) {
-      return { status: 404, message: 'Filial não encontrada.' };
-    }
+  async updateStatus(
+    id: string,
+    status: Status,
+    escopo: EscopoUsuario,
+  ): Promise<ResponseJson> {
+    this.exigirUsuarioDaEmpresa(
+      escopo,
+      'Somente usuários da empresa podem alterar o status de filiais.',
+    );
+    await this.buscarNoEscopo(id, escopo);
 
     const pessoasDaFilial = await this.prisma.pessoa.findMany({
       where: { filialId: id },
@@ -387,9 +418,14 @@ export class FilialService {
     };
   }
 
-  async deleteById(id: string): Promise<ResponseJson> {
-    const filial = await this.prisma.filial.findUnique({
-      where: { id },
+  async deleteById(id: string, escopo: EscopoUsuario): Promise<ResponseJson> {
+    this.exigirUsuarioDaEmpresa(
+      escopo,
+      'Somente usuários da empresa podem excluir filiais.',
+    );
+
+    const filial = await this.prisma.filial.findFirst({
+      where: { AND: [{ id }, this.filtroFilial(escopo)] },
       include: { pessoas: { include: { usuario: true } } }, // Incluímos o usuário para facilitar
     });
 
@@ -430,8 +466,9 @@ export class FilialService {
   async upsertConfig(
     filialId: string,
     dto: import('./dto/filial.dto').ConfigFilialDto,
+    escopo: EscopoUsuario,
   ): Promise<ResponseJson> {
-    await this.assertFilialExists(filialId);
+    await this.buscarNoEscopo(filialId, escopo);
 
     const config = await this.prisma.config_filial.upsert({
       where: {
@@ -457,13 +494,43 @@ export class FilialService {
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
-  private async assertFilialExists(filialId: string): Promise<void> {
-    const filial = await this.prisma.filial.findUnique({
-      where: { id: filialId },
+  /**
+   * Filiais visiveis ao usuario: superadmin ve todas, usuario da empresa ve
+   * as filiais da empresa e usuario de filial apenas a propria.
+   */
+  private filtroFilial(escopo: EscopoUsuario): Prisma.FilialWhereInput {
+    if (escopo.superadmin) {
+      return {};
+    }
+
+    return {
+      empresaId: escopo.empresaId,
+      ...(escopo.filialId && { id: escopo.filialId }),
+    };
+  }
+
+  private async buscarNoEscopo(
+    id: string,
+    escopo: EscopoUsuario,
+  ): Promise<Filial> {
+    const filial = await this.prisma.filial.findFirst({
+      where: { AND: [{ id }, this.filtroFilial(escopo)] },
     });
 
     if (!filial) {
       throw new NotFoundException('Filial não encontrada.');
+    }
+
+    return filial;
+  }
+
+  /** Inativar ou excluir filiais e restrito a usuarios sem filial. */
+  private exigirUsuarioDaEmpresa(
+    escopo: EscopoUsuario,
+    mensagem: string,
+  ): void {
+    if (!escopo.superadmin && escopo.filialId) {
+      throw new ForbiddenException(mensagem);
     }
   }
 }

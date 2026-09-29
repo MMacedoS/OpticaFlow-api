@@ -9,9 +9,10 @@ import {
 } from 'class-validator';
 
 export class CreateNotificacaoDto {
+  /** So e considerado para superadmin; os demais usam a propria empresa. */
+  @IsOptional()
   @IsString({ message: 'O empresaId deve ser um texto valido.' })
-  @IsNotEmpty({ message: 'O empresaId e obrigatorio.' })
-  empresaId!: string;
+  empresaId?: string;
 
   @IsOptional()
   @IsString({ message: 'O filialId deve ser um texto valido.' })
