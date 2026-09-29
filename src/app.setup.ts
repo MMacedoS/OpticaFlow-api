@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { StatusRespostaInterceptor } from './interceptors/status-resposta/status-resposta.interceptor';
 
 /** Configuracao comum da aplicacao, usada no main.ts e nos testes e2e. */
 export function configurarApp(app: INestApplication) {
@@ -22,4 +23,5 @@ export function configurarApp(app: INestApplication) {
     }),
   );
   app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalInterceptors(new StatusRespostaInterceptor());
 }
