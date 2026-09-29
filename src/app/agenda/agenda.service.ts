@@ -4,6 +4,7 @@ import { ResponseJson } from 'src/interface/response/response.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateAgendaDto, UpdateAgendaDto } from './dto/agenda.dto';
 import { prepareNumeroOrdemServico } from 'src/utils/validator';
+import { fimDoPeriodo, inicioDoPeriodo } from 'src/common/datas/periodo';
 
 @Injectable()
 export class AgendaService {
@@ -147,8 +148,8 @@ export class AgendaService {
       ...(dataInicio || dataFim
         ? {
             dataHora: {
-              ...(dataInicio && { gte: new Date(dataInicio) }),
-              ...(dataFim && { lte: new Date(dataFim) }),
+              ...(dataInicio && { gte: inicioDoPeriodo(dataInicio) }),
+              ...(dataFim && { lte: fimDoPeriodo(dataFim) }),
             },
           }
         : {}),

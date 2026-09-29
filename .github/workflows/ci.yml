@@ -30,6 +30,7 @@ jobs:
       JWT_EXPIRATION: 15m
       JWT_REFRESH_SECRET: ci-refresh-secret
       JWT_REFRESH_EXPIRATION: 7d
+      TZ: America/Sao_Paulo
 
     steps:
       - uses: actions/checkout@v4

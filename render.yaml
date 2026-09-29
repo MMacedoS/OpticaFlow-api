@@ -41,6 +41,9 @@ services:
         value: 7d
       - key: SWAGGER_ENABLED
         value: "true"
+      # Fuso usado para "hoje" (dashboard, numero da OS, vencimentos)
+      - key: TZ
+        value: America/Sao_Paulo
       # Roda o seed ao iniciar: deixe true so no primeiro deploy e depois
       # mude para false, porque o seed redefine a senha do superadmin.
       - key: RUN_SEED

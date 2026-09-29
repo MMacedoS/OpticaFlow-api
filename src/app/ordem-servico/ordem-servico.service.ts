@@ -17,6 +17,7 @@ import {
   OrdemServicoItemResumo,
   OrdemServicoResumo,
 } from './interfaces/ordem-servico.interface';
+import { fimDoPeriodo, inicioDoPeriodo } from 'src/common/datas/periodo';
 
 @Injectable()
 export class OrdemServicoService {
@@ -184,8 +185,8 @@ export class OrdemServicoService {
       ...(dataInicio || dataFim
         ? {
             createdAt: {
-              ...(dataInicio && { gte: new Date(dataInicio) }),
-              ...(dataFim && { lte: new Date(dataFim) }),
+              ...(dataInicio && { gte: inicioDoPeriodo(dataInicio) }),
+              ...(dataFim && { lte: fimDoPeriodo(dataFim) }),
             },
           }
         : {}),
