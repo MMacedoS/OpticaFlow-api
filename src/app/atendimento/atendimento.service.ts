@@ -382,16 +382,31 @@ export class AtendimentoService {
 
     const [prontuarios, ordens] = await this.prisma.$transaction([
       this.prisma.prontuario.count({ where: { atendimentoId: id } }),
-      this.prisma.ordemServico.count({ where: { atendimentoId: id } }),
+      this.prisma.ordemServico.findMany({
+        where: { atendimentoId: id },
+        select: {
+          id: true,
+          _count: { select: { itens: true, vendas: true, financeiro: true } },
+        },
+      }),
     ]);
 
-    if (prontuarios > 0 || ordens > 0) {
+    // A consulta cria uma OS junto; vazia (sem itens, venda ou financeiro)
+    // ela nao impede a exclusao e e removida com a consulta.
+    const ordensEmUso = ordens.filter(
+      ({ _count }) => _count.itens + _count.vendas + _count.financeiro > 0,
+    );
+
+    if (prontuarios > 0 || ordensEmUso.length > 0) {
       throw new ConflictException(
-        'Não é possível excluir atendimento com prontuário ou ordem de serviço. Cancele-o.',
+        'Não é possível excluir atendimento com prontuário ou ordem de serviço em uso. Cancele-o.',
       );
     }
 
-    await this.prisma.atendimento.delete({ where: { id } });
+    await this.prisma.$transaction([
+      this.prisma.ordemServico.deleteMany({ where: { atendimentoId: id } }),
+      this.prisma.atendimento.delete({ where: { id } }),
+    ]);
 
     return { status: 200, message: 'Atendimento deletado com sucesso.' };
   }

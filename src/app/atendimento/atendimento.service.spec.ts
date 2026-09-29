@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -25,8 +26,14 @@ describe('AtendimentoService.updateStatus', () => {
     agenda: { update: jest.fn() },
   };
   const prismaMock = {
-    atendimento: { findFirst: jest.fn() },
-    $transaction: jest.fn((fn: (client: typeof tx) => unknown) => fn(tx)),
+    atendimento: { findFirst: jest.fn(), delete: jest.fn() },
+    prontuario: { count: jest.fn() },
+    ordemServico: { findMany: jest.fn(), deleteMany: jest.fn() },
+    $transaction: jest.fn((arg: unknown) =>
+      typeof arg === 'function'
+        ? (arg as (client: typeof tx) => unknown)(tx)
+        : Promise.all(arg as Promise<unknown>[]),
+    ),
   };
   const service = new AtendimentoService(
     prismaMock as unknown as PrismaService,
@@ -151,5 +158,54 @@ describe('AtendimentoService.updateStatus', () => {
         equipe,
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  describe('excluir', () => {
+    const osCom = (itens: number, vendas = 0, financeiro = 0) => ({
+      id: 'os-1',
+      _count: { itens, vendas, financeiro },
+    });
+
+    beforeEach(() => {
+      prismaMock.atendimento.findFirst.mockResolvedValue(
+        atendimentoEm(hojeAs(9)),
+      );
+      prismaMock.prontuario.count.mockResolvedValue(0);
+    });
+
+    it('exclui a consulta e a OS vazia criada junto', async () => {
+      prismaMock.ordemServico.findMany.mockResolvedValue([osCom(0)]);
+
+      await service.deleteById('atend-1', equipe);
+
+      expect(prismaMock.ordemServico.deleteMany).toHaveBeenCalledWith({
+        where: { atendimentoId: 'atend-1' },
+      });
+      expect(prismaMock.atendimento.delete).toHaveBeenCalledWith({
+        where: { id: 'atend-1' },
+      });
+    });
+
+    it.each([
+      ['itens', osCom(2)],
+      ['venda', osCom(0, 1)],
+      ['lancamento financeiro', osCom(0, 0, 1)],
+    ])('nao exclui consulta com OS que tem %s', async (_motivo, ordem) => {
+      prismaMock.ordemServico.findMany.mockResolvedValue([ordem]);
+
+      await expect(
+        service.deleteById('atend-1', equipe),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prismaMock.atendimento.delete).not.toHaveBeenCalled();
+    });
+
+    it('nao exclui consulta com prontuario', async () => {
+      prismaMock.prontuario.count.mockResolvedValue(1);
+      prismaMock.ordemServico.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.deleteById('atend-1', equipe),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
   });
 });
